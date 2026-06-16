@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>PD Measure · AR</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --bg:#080810; --surface:#10101a; --border:#1e1e2e;
+  --accent:#00e5ff; --good:#00e676; --warn:#ffd740; --danger:#ff4444;
+  --text:#e0e0f0; --muted:#5a5a7a; --mono:'Courier New',monospace;
+}
+body {
+  background:var(--bg); color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  height:100vh; overflow:hidden;
+  display:flex; flex-direction:column; align-items:center;
+}
+
+/* ── Pre-AR screen ── */
+#pre-screen {
+  width:100%; max-width:480px;
+  display:flex; flex-direction:column;
+  padding:20px 16px; gap:14px;
+  height:100vh; overflow-y:auto;
+}
+header { display:flex; align-items:baseline; gap:10px; padding-bottom:14px; border-bottom:1px solid var(--border); }
+header h1 { font-size:13px; font-weight:700; letter-spacing:0.2em; text-transform:uppercase; color:var(--accent); }
+header span { font-size:11px; color:var(--muted); font-family:var(--mono); }
+
+.card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 16px; font-size:13px; line-height:1.7; }
+.card strong { color:var(--accent); }
+.card.gborder { border-color:var(--good); }
+.card.wborder { border-color:var(--warn); }
+.card.dborder { border-color:var(--danger); }
+
+.tag { display:inline-block; font-family:var(--mono); font-size:10px; padding:2px 7px; border-radius:3px; letter-spacing:0.1em; font-weight:700; margin-right:5px; }
+.t-ar   { background:var(--accent); color:#000; }
+.t-ok   { background:var(--good);   color:#000; }
+.t-warn { background:var(--warn);   color:#000; }
+.t-err  { background:var(--danger); color:#fff; }
+
+.btn {
+  width:100%; padding:18px; border:none; border-radius:10px;
+  font-size:15px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase;
+  cursor:pointer; -webkit-tap-highlight-color:transparent;
+  transition:opacity 0.15s, transform 0.1s;
+}
+.btn:active { transform:scale(0.97); opacity:0.8; }
+.btn-p { background:var(--accent); color:#000; }
+.btn-g { background:transparent; border:1px solid var(--border); color:var(--muted); }
+.btn:disabled { background:var(--border); color:var(--muted); pointer-events:none; }
+
+/* ── AR overlay (shown during session) ── */
+#ar-screen {
+  display:none;
+  position:fixed; inset:0;
+  background:transparent;
+  flex-direction:column;
+  align-items:center;
+  justify-content:flex-end;
+  padding-bottom:40px;
+  gap:14px;
+  z-index:100;
+}
+#ar-screen.active { display:flex; }
+
+/* Crosshair reticle always centered */
+#reticle-svg {
+  position:fixed;
+  top:50%; left:50%;
+  transform:translate(-50%,-50%);
+  pointer-events:none;
+  z-index:101;
+}
+
+/* Markers drawn on canvas overlay */
+#ar-canvas {
+  position:fixed; inset:0;
+  pointer-events:none;
+  z-index:102;
+}
+
+/* Step pill */
+#ar-step-pill {
+  background:rgba(0,0,0,0.75);
+  border:1px solid var(--accent);
+  border-radius:30px;
+  padding:8px 20px;
+  font-family:var(--mono); font-size:13px; color:var(--accent);
+  letter-spacing:0.08em; text-align:center;
+  backdrop-filter:blur(8px);
+}
+
+/* PD result bubble */
+#pd-bubble {
+  display:none;
+  background:rgba(0,0,0,0.88);
+  border:1px solid var(--accent);
+  border-radius:16px;
+  padding:18px 28px;
+  text-align:center;
+  backdrop-filter:blur(10px);
+}
+#pd-bubble.show { display:block; }
+.pd-big { font-family:var(--mono); font-size:56px; font-weight:700; color:var(--accent); line-height:1; text-shadow:0 0 24px rgba(0,229,255,0.4); }
+.pd-unit { font-family:var(--mono); font-size:14px; color:var(--muted); margin-top:4px; }
+.pd-detail { margin-top:10px; font-family:var(--mono); font-size:11px; color:var(--muted); line-height:1.8; }
+.pd-detail span { color:var(--accent); }
+
+/* Tap button */
+#btn-tap {
+  background:rgba(0,229,255,0.92);
+  color:#000;
+  border:none; border-radius:50px;
+  padding:16px 40px;
+  font-size:16px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase;
+  cursor:pointer; -webkit-tap-highlight-color:transparent;
+  box-shadow:0 4px 24px rgba(0,229,255,0.35);
+  transition:transform 0.1s, opacity 0.15s;
+}
+#btn-tap:active { transform:scale(0.95); }
+
+/* bottom buttons */
+.ar-btns { display:flex; gap:10px; width:100%; max-width:360px; }
+.ar-btn-sm {
+  flex:1; padding:10px; border-radius:8px; font-size:12px;
+  font-weight:600; letter-spacing:0.08em; text-transform:uppercase;
+  cursor:pointer; -webkit-tap-highlight-color:transparent;
+  background:rgba(0,0,0,0.7); border:1px solid var(--border); color:var(--muted);
+  backdrop-filter:blur(8px);
+}
+
+/* trim slider in AR */
+#trim-wrap {
+  display:none;
+  background:rgba(0,0,0,0.75);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:10px 16px;
+  width:100%; max-width:360px;
+  backdrop-filter:blur(8px);
+}
+#trim-wrap.show { display:block; }
+.trim-row { display:flex; align-items:center; gap:10px; }
+.trim-row label { font-size:11px; color:var(--muted); white-space:nowrap; }
+.trim-row input[type=range] { flex:1; accent-color:var(--accent); }
+.trim-row .tv { font-family:var(--mono); font-size:12px; color:var(--accent); min-width:36px; text-align:right; }
+
+/* sbar */
+.sbar { display:flex; gap:6px; width:100%; max-width:360px; }
+.sseg { flex:1; height:3px; border-radius:2px; background:rgba(255,255,255,0.15); }
+.sseg.on   { background:var(--accent); }
+.sseg.done { background:var(--good); }
+
+/* debug */
+#dbg { display:none; font-family:var(--mono); font-size:11px; color:var(--muted); line-height:1.9; background:rgba(0,0,0,0.8); border:1px solid var(--border); border-radius:7px; padding:10px; width:100%; max-width:360px; }
+#dbg.show { display:block; }
+#dbg span { color:var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- ════ PRE-AR SCREEN ════ -->
+<div id="pre-screen">
+  <header>
+    <h1>PD Measure</h1>
+    <span>v0.4 · WebXR</span>
+  </header>
+
+  <div class="card" id="ar-support-card">
+    <span class="tag t-ar">AR</span>
+    Checking WebXR support…
+  </div>
+
+  <div class="card" id="how-card">
+    <span class="tag t-ar">HOW IT WORKS</span><br>
+    Uses your phone's <strong>ARCore tracking</strong> — no ruler, no calibration needed.<br><br>
+    <strong>1.</strong> Start AR session<br>
+    <strong>2.</strong> Hold phone below right eye — tap <em>Mark R</em><br>
+    <strong>3.</strong> Move to left eye — tap <em>Mark L</em><br>
+    <strong>4.</strong> PD = real 3D distance between marks<br><br>
+    <span style="color:var(--muted);font-size:12px;">Phone must stay level — only lateral (horizontal) distance is used.</span>
+  </div>
+
+  <div class="card wborder" id="warn-card" style="display:none">
+    <span class="tag t-warn">NOTE</span>
+    <span id="warn-text"></span>
+  </div>
+
+  <div class="card dborder" id="err-card" style="display:none">
+    <span class="tag t-err">NOT SUPPORTED</span>
+    <span id="err-text"></span>
+  </div>
+
+  <button class="btn btn-p" id="btn-start" disabled>Start AR Session</button>
+  <button class="btn btn-g" style="font-size:12px;" onclick="document.getElementById('dbg-pre').classList.toggle('show')">debug info</button>
+  <div id="dbg-pre" style="display:none;font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.9;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:10px;"></div>
+</div>
+
+<!-- ════ AR OVERLAY ════ -->
+<div id="ar-screen">
+
+  <!-- Centered reticle crosshair -->
+  <svg id="reticle-svg" width="60" height="60" viewBox="0 0 60 60">
+    <!-- outer ring -->
+    <circle cx="30" cy="30" r="22" fill="none" stroke="#00e5ff" stroke-width="1.5" opacity="0.7"/>
+    <!-- gap crosshair -->
+    <line x1="30" y1="2"  x2="30" y2="22" stroke="#00e5ff" stroke-width="1.5"/>
+    <line x1="30" y1="38" x2="30" y2="58" stroke="#00e5ff" stroke-width="1.5"/>
+    <line x1="2"  y1="30" x2="22" y2="30" stroke="#00e5ff" stroke-width="1.5"/>
+    <line x1="38" y1="30" x2="58" y2="30" stroke="#00e5ff" stroke-width="1.5"/>
+    <!-- center dot -->
+    <circle cx="30" cy="30" r="2" fill="#00e5ff"/>
+  </svg>
+
+  <!-- Marker canvas -->
+  <canvas id="ar-canvas"></canvas>
+
+  <!-- Step bar -->
+  <div class="sbar">
+    <div class="sseg on"  id="as1"></div>
+    <div class="sseg"     id="as2"></div>
+    <div class="sseg"     id="as3"></div>
+  </div>
+
+  <!-- Step label -->
+  <div id="ar-step-pill">Align with right iris border → tap</div>
+
+  <!-- PD result -->
+  <div class="pd-big" id="pd-bubble">
+    <div id="pd-val">—</div>
+    <div class="pd-unit">mm · binocular PD</div>
+    <div class="pd-detail" id="pd-detail"></div>
+  </div>
+
+  <!-- Trim -->
+  <div id="trim-wrap">
+    <div class="trim-row">
+      <label>PD trim</label>
+      <input type="range" id="pd-trim" min="-8" max="8" step="0.5" value="0">
+      <div class="tv" id="pd-trim-v">0.0 mm</div>
+    </div>
+  </div>
+
+  <!-- Tap button -->
+  <button id="btn-tap" onclick="onTap()">Mark R Eye</button>
+
+  <!-- Bottom buttons -->
+  <div class="ar-btns">
+    <button class="ar-btn-sm" onclick="resetAR()">↺ Reset</button>
+    <button class="ar-btn-sm" onclick="endAR()">✕ Exit</button>
+    <button class="ar-btn-sm" onclick="document.getElementById('dbg').classList.toggle('show')">debug</button>
+  </div>
+
+  <div id="dbg"></div>
+
+</div>
+
+<script>
+// ══════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════
+const G = {
+  step: 1,           // 1=R eye, 2=L eye, 3=result
+  marks: [null, null],  // each: {x,y,z} in AR viewer space (meters)
+  xrSession: null,
+  xrRefSpace: null,
+  xrFrame: null,
+  hitTestSource: null,
+  animFrame: null,
+  trimVal: 0,
+};
+
+// ══════════════════════════════════════
+//  CHECK SUPPORT
+// ══════════════════════════════════════
+const supportCard = document.getElementById('ar-support-card');
+const warnCard    = document.getElementById('warn-card');
+const errCard     = document.getElementById('err-card');
+const btnStart    = document.getElementById('btn-start');
+const dbgPre      = document.getElementById('dbg-pre');
+
+async function checkSupport() {
+  const lines = [];
+
+  if (!navigator.xr) {
+    lines.push('navigator.xr: NOT FOUND');
+    showErr('WebXR not available. Open in Chrome on Android.');
+    dbgPre.innerHTML = lines.join('<br>'); dbgPre.classList.add('show');
+    return;
+  }
+  lines.push('navigator.xr: ✓');
+
+  const arOk = await navigator.xr.isSessionSupported('immersive-ar').catch(()=>false);
+  lines.push('immersive-ar: ' + (arOk ? '✓' : '✗'));
+
+  dbgPre.innerHTML = lines.join('<br>');
+
+  if (!arOk) {
+    showErr('immersive-ar not supported. Needs ARCore + Chrome on Android. Enable chrome://flags/#WebXR if needed.');
+    return;
+  }
+
+  supportCard.innerHTML = `<span class="tag t-ok">READY</span> WebXR AR supported on this device.`;
+  btnStart.disabled = false;
+}
+
+function showErr(msg) {
+  errCard.style.display = '';
+  document.getElementById('err-text').textContent = msg;
+  supportCard.innerHTML = `<span class="tag t-err">ERROR</span> ${msg}`;
+  btnStart.disabled = true;
+}
+
+function showWarn(msg) {
+  warnCard.style.display = '';
+  document.getElementById('warn-text').textContent = msg;
+}
+
+// ══════════════════════════════════════
+//  START AR SESSION
+// ══════════════════════════════════════
+btnStart.addEventListener('click', startAR);
+
+async function startAR() {
+  btnStart.disabled = true;
+  btnStart.textContent = 'Starting…';
+  try {
+    const session = await navigator.xr.requestSession('immersive-ar', {
+      requiredFeatures: ['local-floor'],
+      optionalFeatures: ['hit-test', 'dom-overlay'],
+      domOverlay: { root: document.getElementById('ar-screen') },
+    });
+    G.xrSession = session;
+    await setupAR(session);
+  } catch(e) {
+    btnStart.disabled = false;
+    btnStart.textContent = 'Start AR Session';
+    showErr('Failed to start AR: ' + e.message);
+  }
+}
+
+async function setupAR(session) {
+  // Reference space
+  G.xrRefSpace = await session.requestReferenceSpace('local-floor')
+    .catch(() => session.requestReferenceSpace('local'));
+
+  // Hit test source (optional — we use it for visual feedback only)
+  try {
+    const viewerSpace = await session.requestReferenceSpace('viewer');
+    G.hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
+  } catch(e) {
+    showWarn('Hit-test not available — position tracking only. ' + e.message);
+  }
+
+  // GL context
+  const canvas = document.createElement('canvas');
+  const gl = canvas.getContext('webgl', { xrCompatible: true });
+  await gl.makeXRCompatible();
+  session.updateRenderState({ baseLayer: new XRWebGLLayer(session, gl) });
+
+  // Show AR overlay
+  document.getElementById('pre-screen').style.display = 'none';
+  document.getElementById('ar-screen').classList.add('active');
+
+  // Resize marker canvas
+  const ac = document.getElementById('ar-canvas');
+  ac.width  = window.innerWidth;
+  ac.height = window.innerHeight;
+
+  session.addEventListener('end', onSessionEnd);
+  G.animFrame = session.requestAnimationFrame(onXRFrame);
+}
+
+// ══════════════════════════════════════
+//  XR FRAME LOOP
+// ══════════════════════════════════════
+function onXRFrame(time, frame) {
+  G.xrFrame = frame;
+  const session = frame.session;
+  G.animFrame = session.requestAnimationFrame(onXRFrame);
+
+  const pose = frame.getViewerPose(G.xrRefSpace);
+  if (!pose) return;
+
+  // Update reticle color based on hit test
+  if (G.hitTestSource) {
+    const hits = frame.getHitTestResults(G.hitTestSource);
+    const reticle = document.getElementById('reticle-svg');
+    if (hits.length > 0) {
+      reticle.style.opacity = '1';
+      // hit available — good to tap
+    } else {
+      reticle.style.opacity = '0.4';
+    }
+  }
+
+  updateDbg(frame, pose);
+}
+
+// ══════════════════════════════════════
+//  TAP — RECORD POSITION
+// ══════════════════════════════════════
+function onTap() {
+  if (G.step > 2) return;
+  if (!G.xrFrame || !G.xrRefSpace) return;
+
+  const pose = G.xrFrame.getViewerPose(G.xrRefSpace);
+  if (!pose) { showWarn('No tracking — move phone slowly first.'); return; }
+
+  // Get viewer position in reference space
+  const t = pose.transform.position;
+  const pos = { x: t.x, y: t.y, z: t.z };
+
+  G.marks[G.step - 1] = pos;
+
+  if (G.step === 1) {
+    // Mark R done
+    G.step = 2;
+    drawMarker(0, '#00e5ff', 'R');
+    document.getElementById('ar-step-pill').textContent = 'Move to left eye → tap Mark L';
+    document.getElementById('btn-tap').textContent = 'Mark L Eye';
+    document.getElementById('btn-tap').style.background = 'rgba(0,230,118,0.92)';
+    updateStepBar();
+
+  } else if (G.step === 2) {
+    // Mark L done
+    G.step = 3;
+    drawMarker(1, '#00e676', 'L');
+    computePD();
+    document.getElementById('ar-step-pill').textContent = 'Measurement complete';
+    document.getElementById('btn-tap').textContent = '✓ Done';
+    document.getElementById('btn-tap').disabled = true;
+    document.getElementById('trim-wrap').classList.add('show');
+    updateStepBar();
+  }
+
+  updateDbg(G.xrFrame, pose);
+}
+
+// ══════════════════════════════════════
+//  COMPUTE PD
+// ══════════════════════════════════════
+document.getElementById('pd-trim').addEventListener('input', function() {
+  G.trimVal = +this.value;
+  document.getElementById('pd-trim-v').textContent = G.trimVal.toFixed(1) + ' mm';
+  computePD();
+});
+
+function computePD() {
+  const R = G.marks[0], L = G.marks[1];
+  if (!R || !L) return;
+
+  // 3D Euclidean distance in meters → mm
+  const dx = (L.x - R.x) * 1000;
+  const dy = (L.y - R.y) * 1000;
+  const dz = (L.z - R.z) * 1000;
+  const dist3D = Math.sqrt(dx*dx + dy*dy + dz*dz);
+
+  // Horizontal only (x-axis in local-floor space = lateral)
+  const distH = Math.abs(dx);
+
+  // Use 3D distance as primary (more robust if slight tilt)
+  const pdMM = dist3D + G.trimVal;
+
+  document.getElementById('pd-val').textContent = pdMM.toFixed(1);
+  document.getElementById('pd-bubble').classList.add('show');
+  document.getElementById('pd-detail').innerHTML =
+    `3D dist: <span>${dist3D.toFixed(1)} mm</span>  Horiz: <span>${distH.toFixed(1)} mm</span><br>` +
+    `Δx=${dx.toFixed(1)} Δy=${dy.toFixed(1)} Δz=${dz.toFixed(1)} mm`;
+}
+
+// ══════════════════════════════════════
+//  DRAW MARKERS ON CANVAS
+// ══════════════════════════════════════
+function drawMarker(idx, col, lbl) {
+  // Draw at screen center (where user was aiming)
+  const ac = document.getElementById('ar-canvas');
+  const ctx = ac.getContext('2d');
+  const cx = ac.width / 2;
+  const cy = ac.height / 2;
+  // Offset slightly so both markers don't overlap
+  const offX = idx === 0 ? -40 : 40;
+
+  ctx.save();
+  ctx.strokeStyle = col; ctx.fillStyle = col;
+  ctx.lineWidth = 2; ctx.shadowColor = col; ctx.shadowBlur = 10;
+  ctx.beginPath(); ctx.arc(cx+offX, cy, 8, 0, Math.PI*2); ctx.fill();
+  ctx.font = 'bold 14px Courier New';
+  ctx.fillText(lbl, cx+offX+12, cy-10);
+  ctx.restore();
+}
+
+// ══════════════════════════════════════
+//  STEP BAR
+// ══════════════════════════════════════
+function updateStepBar() {
+  [1,2,3].forEach(i => {
+    const el = document.getElementById('as'+i);
+    el.className = 'sseg' + (i < G.step ? ' done' : i === G.step ? ' on' : '');
+  });
+}
+
+// ══════════════════════════════════════
+//  RESET / END
+// ══════════════════════════════════════
+function resetAR() {
+  G.step = 1; G.marks = [null, null]; G.trimVal = 0;
+  document.getElementById('ar-canvas').getContext('2d').clearRect(0,0,window.innerWidth,window.innerHeight);
+  document.getElementById('ar-step-pill').textContent = 'Align with right iris border → tap';
+  document.getElementById('btn-tap').textContent = 'Mark R Eye';
+  document.getElementById('btn-tap').style.background = 'rgba(0,229,255,0.92)';
+  document.getElementById('btn-tap').disabled = false;
+  document.getElementById('pd-bubble').classList.remove('show');
+  document.getElementById('trim-wrap').classList.remove('show');
+  document.getElementById('pd-trim').value = 0;
+  document.getElementById('pd-trim-v').textContent = '0.0 mm';
+  document.getElementById('reticle-svg').style.opacity = '1';
+  updateStepBar();
+}
+
+function endAR() {
+  if (G.xrSession) { G.xrSession.end(); }
+}
+
+function onSessionEnd() {
+  G.xrSession = null; G.xrFrame = null; G.hitTestSource = null;
+  document.getElementById('ar-screen').classList.remove('active');
+  document.getElementById('pre-screen').style.display = '';
+  btnStart.disabled = false;
+  btnStart.textContent = 'Start AR Session';
+}
+
+// ══════════════════════════════════════
+//  DEBUG
+// ══════════════════════════════════════
+function updateDbg(frame, pose) {
+  const R=G.marks[0], L=G.marks[1];
+  const p = pose ? pose.transform.position : null;
+  document.getElementById('dbg').innerHTML = `
+    <div>Viewer pos: <span>${p?`${p.x.toFixed(4)},${p.y.toFixed(4)},${p.z.toFixed(4)}`:'—'}</span></div>
+    <div>R mark: <span>${R?`${R.x.toFixed(4)},${R.y.toFixed(4)},${R.z.toFixed(4)}`:'—'}</span></div>
+    <div>L mark: <span>${L?`${L.x.toFixed(4)},${L.y.toFixed(4)},${L.z.toFixed(4)}`:'—'}</span></div>
+    <div>Step: <span>${G.step}</span>  HitTest: <span>${G.hitTestSource?'✓':'✗'}</span></div>
+  `;
+}
+
+// ══ Init ══
+checkSupport();
+</script>
+</body>
+</html>
