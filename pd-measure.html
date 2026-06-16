@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>PD Measure</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #080810;
+    --surface: #10101a;
+    --border: #1e1e30;
+    --accent: #00e5ff;
+    --accent2: #7c4dff;
+    --text: #e0e0f0;
+    --muted: #5a5a7a;
+    --good: #00e676;
+    --warn: #ffd740;
+    --danger: #ff4444;
+    --readout-font: 'Courier New', monospace;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-x: hidden;
+  }
+
+  /* ── Header ── */
+  header {
+    width: 100%;
+    padding: 14px 20px 10px;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  header span {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--readout-font);
+  }
+
+  /* ── Main layout ── */
+  main {
+    width: 100%;
+    max-width: 480px;
+    padding: 0 16px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* ── Step indicator ── */
+  .steps {
+    display: flex;
+    gap: 8px;
+    padding: 14px 0 4px;
+  }
+  .step {
+    flex: 1;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    transition: background 0.3s;
+  }
+  .step.active { background: var(--accent); }
+  .step.done { background: var(--good); }
+
+  .step-label {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .step-label span { color: var(--accent); }
+
+  /* ── Camera viewport ── */
+  .camera-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 3/4;
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+
+  #video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1); /* mirror selfie */
+  }
+
+  #overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  /* ── Reticle ── */
+  .reticle-ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 1.5px solid var(--accent);
+    opacity: 0.85;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    transition: border-color 0.2s;
+  }
+  .reticle-ring.locked {
+    border-color: var(--good);
+    box-shadow: 0 0 12px rgba(0,230,118,0.4);
+  }
+
+  /* corner brackets */
+  .bracket {
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    pointer-events: none;
+  }
+  .bracket-tl { top: -1px; left: -1px; border-top: 2px solid var(--accent); border-left: 2px solid var(--accent); }
+  .bracket-tr { top: -1px; right: -1px; border-top: 2px solid var(--accent); border-right: 2px solid var(--accent); }
+  .bracket-bl { bottom: -1px; left: -1px; border-bottom: 2px solid var(--accent); border-left: 2px solid var(--accent); }
+  .bracket-br { bottom: -1px; right: -1px; border-bottom: 2px solid var(--accent); border-right: 2px solid var(--accent); }
+
+  /* crosshair lines through center */
+  .crosshair-h, .crosshair-v {
+    position: absolute;
+    background: var(--accent);
+    opacity: 0.4;
+    pointer-events: none;
+  }
+  .crosshair-h { height: 1px; width: 100%; top: 50%; left: 0; transform: translateY(-50%); }
+  .crosshair-v { width: 1px; height: 100%; left: 50%; top: 0; transform: translateX(-50%); }
+
+  /* limbus detection highlight */
+  #limbus-circle {
+    position: absolute;
+    border-radius: 50%;
+    border: 2px solid var(--good);
+    opacity: 0;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    transition: opacity 0.3s;
+    box-shadow: 0 0 8px rgba(0,230,118,0.5);
+  }
+  #limbus-circle.visible { opacity: 1; }
+
+  /* status overlay text */
+  .cam-status {
+    position: absolute;
+    bottom: 12px;
+    left: 0; right: 0;
+    text-align: center;
+    font-size: 12px;
+    font-family: var(--readout-font);
+    color: var(--accent);
+    letter-spacing: 0.08em;
+    text-shadow: 0 0 8px rgba(0,229,255,0.8);
+  }
+
+  /* frozen overlay */
+  #frozen-overlay {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.55);
+  }
+  #frozen-overlay.visible { display: flex; }
+  #frozen-overlay .frozen-label {
+    font-family: var(--readout-font);
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    color: var(--good);
+    border: 1px solid var(--good);
+    padding: 6px 16px;
+    border-radius: 4px;
+    text-transform: uppercase;
+  }
+
+  /* ── Instruction card ── */
+  .instr {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text);
+  }
+  .instr strong { color: var(--accent); font-weight: 600; }
+  .instr .eye-tag {
+    display: inline-block;
+    font-family: var(--readout-font);
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    background: var(--accent2);
+    color: #fff;
+    margin-right: 6px;
+    letter-spacing: 0.1em;
+  }
+
+  /* ── Capture button ── */
+  .btn-capture {
+    width: 100%;
+    padding: 18px;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn-capture:active { transform: scale(0.97); opacity: 0.85; }
+  .btn-capture:disabled { background: var(--border); color: var(--muted); cursor: default; transform: none; }
+  .btn-capture.secondary {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+  }
+
+  /* ── Result card ── */
+  #result-card {
+    display: none;
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+  }
+  #result-card.visible { display: block; }
+  .pd-readout {
+    font-family: var(--readout-font);
+    font-size: 52px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+    line-height: 1;
+    text-shadow: 0 0 20px rgba(0,229,255,0.4);
+  }
+  .pd-unit {
+    font-family: var(--readout-font);
+    font-size: 18px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+  .pd-breakdown {
+    margin-top: 14px;
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    font-family: var(--readout-font);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .pd-breakdown span { color: var(--text); }
+
+  /* ── Calibration panel ── */
+  #cal-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  #cal-panel h3 {
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+  .cal-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .cal-row label {
+    font-size: 12px;
+    color: var(--muted);
+    min-width: 130px;
+  }
+  .cal-row input[type=range] {
+    flex: 1;
+    accent-color: var(--accent);
+  }
+  .cal-row .val {
+    font-family: var(--readout-font);
+    font-size: 12px;
+    color: var(--accent);
+    min-width: 44px;
+    text-align: right;
+  }
+  .cal-note {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.5;
+    margin-top: 6px;
+  }
+
+  /* ── Debug panel ── */
+  #debug-panel {
+    background: #080810;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    font-family: var(--readout-font);
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.8;
+    display: none;
+  }
+  #debug-panel.visible { display: block; }
+  #debug-panel span { color: var(--accent); }
+
+  .toggle-debug {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 11px;
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 0;
+    font-family: var(--readout-font);
+  }
+
+  .reset-btn {
+    width: 100%;
+    padding: 12px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--muted);
+    font-size: 13px;
+    cursor: pointer;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+  .reset-btn:active { border-color: var(--danger); color: var(--danger); }
+
+  /* captured thumb */
+  .capture-thumb {
+    width: 60px;
+    height: 60px;
+    border-radius: 6px;
+    object-fit: cover;
+    border: 1px solid var(--good);
+    display: none;
+    transform: scaleX(-1);
+  }
+  .capture-thumb.visible { display: inline-block; }
+
+  .thumb-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  .thumb-info {
+    font-family: var(--readout-font);
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+  .thumb-info span { color: var(--good); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>PD Measure</h1>
+  <span>v0.1 · limbus odometry</span>
+</header>
+
+<main>
+
+  <!-- Step bar -->
+  <div>
+    <div class="steps">
+      <div class="step active" id="s1"></div>
+      <div class="step" id="s2"></div>
+      <div class="step" id="s3"></div>
+    </div>
+    <div class="step-label" id="step-label">Step <span id="step-num">1</span> of 3</div>
+  </div>
+
+  <!-- Camera -->
+  <div class="camera-wrap">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="overlay"></canvas>
+
+    <!-- Reticle (positioned via JS) -->
+    <div id="reticle" style="position:absolute; pointer-events:none;">
+      <div class="reticle-ring" id="reticle-ring" style="width:80px;height:80px;"></div>
+      <div id="limbus-circle"></div>
+    </div>
+
+    <div class="crosshair-h" style="position:absolute;height:1px;width:100%;top:50%;background:rgba(0,229,255,0.15);"></div>
+    <div class="crosshair-v" style="position:absolute;width:1px;height:100%;left:50%;background:rgba(0,229,255,0.15);"></div>
+
+    <div class="cam-status" id="cam-status">Initializing camera…</div>
+
+    <div id="frozen-overlay">
+      <div class="frozen-label">Captured ✓</div>
+    </div>
+  </div>
+
+  <!-- Captured thumbnails -->
+  <div class="thumb-row" id="thumb-row" style="display:none;">
+    <canvas id="thumb1" class="capture-thumb" width="60" height="60"></canvas>
+    <div class="thumb-info" id="thumb-info"></div>
+  </div>
+
+  <!-- Instruction -->
+  <div class="instr" id="instr-text">
+    <span class="eye-tag">RIGHT EYE</span>
+    Position phone <strong>below</strong> your right eye.<br>
+    Fixate a <strong>distant target</strong> straight ahead.<br>
+    Align the circle with the <strong>right border of your iris</strong>, then capture.
+  </div>
+
+  <!-- Capture button -->
+  <button class="btn-capture" id="btn-capture">Capture Right Eye</button>
+
+  <!-- Result -->
+  <div id="result-card">
+    <div class="pd-readout" id="pd-value">—</div>
+    <div class="pd-unit">mm · binocular PD</div>
+    <div class="pd-breakdown" id="pd-breakdown"></div>
+  </div>
+
+  <!-- Calibration -->
+  <div id="cal-panel">
+    <h3>Calibration</h3>
+
+    <div class="cal-row">
+      <label>Corneal diameter (mm)</label>
+      <input type="range" id="cal-cornea" min="10.5" max="13.0" step="0.1" value="11.7">
+      <div class="val" id="cal-cornea-val">11.7</div>
+    </div>
+
+    <div class="cal-row">
+      <label>PD offset (mm)</label>
+      <input type="range" id="cal-offset" min="-5" max="5" step="0.5" value="0">
+      <div class="val" id="cal-offset-val">0.0</div>
+    </div>
+
+    <div class="cal-note">
+      After testing, adjust <em>PD offset</em> to match your known PD.<br>
+      Corneal diameter default: 11.7mm (avg adult).
+    </div>
+  </div>
+
+  <!-- Debug -->
+  <button class="toggle-debug" onclick="toggleDebug()">show debug info</button>
+  <div id="debug-panel"></div>
+
+  <!-- Reset -->
+  <button class="reset-btn" id="btn-reset" onclick="resetAll()">↺ Start Over</button>
+
+</main>
+
+<canvas id="capture-canvas" style="display:none;"></canvas>
+
+<script>
+// ── State ──
+const state = {
+  step: 1, // 1=right eye, 2=left eye, 3=result
+  captures: [null, null], // {imageData, limbusX, limbusY, limbusR, canvasW, canvasH}
+  stream: null,
+};
+
+// ── DOM ──
+const video      = document.getElementById('video');
+const overlay    = document.getElementById('overlay');
+const camStatus  = document.getElementById('cam-status');
+const btnCapture = document.getElementById('btn-capture');
+const instrText  = document.getElementById('instr-text');
+const resultCard = document.getElementById('result-card');
+const pdValue    = document.getElementById('pd-value');
+const pdBreakdown= document.getElementById('pd-breakdown');
+const frozenOvl  = document.getElementById('frozen-overlay');
+const captureCanvas = document.getElementById('capture-canvas');
+const reticleRing   = document.getElementById('reticle-ring');
+const limbusCircle  = document.getElementById('limbus-circle');
+const debugPanel    = document.getElementById('debug-panel');
+const thumbRow      = document.getElementById('thumb-row');
+const thumbInfo     = document.getElementById('thumb-info');
+const thumb1Canvas  = document.getElementById('thumb1');
+
+// ── Calibration sliders ──
+const calCornea    = document.getElementById('cal-cornea');
+const calCorneaVal = document.getElementById('cal-cornea-val');
+const calOffset    = document.getElementById('cal-offset');
+const calOffsetVal = document.getElementById('cal-offset-val');
+
+calCornea.addEventListener('input', () => {
+  calCorneaVal.textContent = parseFloat(calCornea.value).toFixed(1);
+  if (state.step === 3) computeAndShow();
+});
+calOffset.addEventListener('input', () => {
+  calOffsetVal.textContent = parseFloat(calOffset.value).toFixed(1);
+  if (state.step === 3) computeAndShow();
+});
+
+// ── Start camera ──
+async function startCamera() {
+  try {
+    state.stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 960 } },
+      audio: false
+    });
+    video.srcObject = state.stream;
+    video.onloadedmetadata = () => {
+      camStatus.textContent = 'Ready · align reticle';
+      positionReticle();
+      requestAnimationFrame(analysisLoop);
+    };
+  } catch(e) {
+    camStatus.textContent = 'Camera error: ' + e.message;
+  }
+}
+
+// ── Reticle position ──
+// Step 1: center-right quadrant (right eye limbus)
+// Step 2: center-left quadrant (left eye limbus)
+function positionReticle() {
+  const wrap = video.parentElement;
+  const w = wrap.offsetWidth;
+  const h = wrap.offsetHeight;
+  const ring = reticleRing;
+
+  // Target region: horizontally ~65% from left for R eye, ~35% for L eye
+  const cx = state.step === 1 ? w * 0.62 : w * 0.38;
+  const cy = h * 0.42;
+  const r  = Math.min(w, h) * 0.14; // ~14% of smaller dimension
+
+  ring.style.width  = (r*2) + 'px';
+  ring.style.height = (r*2) + 'px';
+  ring.style.left   = cx + 'px';
+  ring.style.top    = cy + 'px';
+
+  // store for analysis
+  ring._cx = cx; ring._cy = cy; ring._r = r;
+}
+
+// ── Analysis loop: detect limbus inside reticle ──
+let lastLimbusData = null;
+
+function analysisLoop() {
+  if (state.step === 3) return;
+  if (!video.videoWidth) { requestAnimationFrame(analysisLoop); return; }
+
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+  const wrap = video.parentElement;
+  const dw = wrap.offsetWidth;
+  const dh = wrap.offsetHeight;
+
+  // Map reticle display coords → video coords
+  // video is mirrored (scaleX(-1)), object-fit:cover
+  const scale = Math.max(dw/vw, dh/vh);
+  const rendW = vw * scale;
+  const rendH = vh * scale;
+  const offX  = (rendW - dw) / 2;
+  const offY  = (rendH - dh) / 2;
+
+  const ring = reticleRing;
+  const cx_d = ring._cx ?? dw*0.62;
+  const cy_d = ring._cy ?? dh*0.42;
+  const r_d  = ring._r  ?? dh*0.14;
+
+  // Mirror x for selfie
+  const cx_v = ((dw - cx_d) + offX) / scale;
+  const cy_v = (cy_d + offY) / scale;
+  const r_v  = r_d / scale;
+
+  // Sample pixel brightness in a grid within reticle circle
+  // Use offscreen canvas
+  const oc = captureCanvas;
+  oc.width  = vw;
+  oc.height = vh;
+  const ctx = oc.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(video, 0, 0, vw, vh);
+
+  const limbusData = detectLimbus(ctx, cx_v, cy_v, r_v);
+  lastLimbusData = limbusData;
+
+  // Update limbus highlight circle
+  if (limbusData.found) {
+    const lx_d = dw - (limbusData.cx * scale - offX); // mirror back
+    const ly_d = limbusData.cy * scale - offY;
+    const lr_d = limbusData.r * scale;
+
+    limbusCircle.style.left   = lx_d + 'px';
+    limbusCircle.style.top    = ly_d + 'px';
+    limbusCircle.style.width  = (lr_d*2) + 'px';
+    limbusCircle.style.height = (lr_d*2) + 'px';
+    limbusCircle.classList.add('visible');
+    reticleRing.classList.add('locked');
+    camStatus.textContent = `Limbus detected · r=${limbusData.r.toFixed(0)}px`;
+  } else {
+    limbusCircle.classList.remove('visible');
+    reticleRing.classList.remove('locked');
+    camStatus.textContent = state.step === 1 ? 'Align with right iris border →' : '← Align with right iris border';
+  }
+
+  requestAnimationFrame(analysisLoop);
+}
+
+// ── Limbus detection ──
+// Find the circle of darkest-to-brightest transition (iris/sclera boundary)
+// within the reticle search region
+function detectLimbus(ctx, cx, cy, searchR) {
+  const iw = ctx.canvas.width;
+  const ih = ctx.canvas.height;
+
+  // Sample along radial lines from center outward, find dark→bright transition
+  const numRays = 32;
+  const transitions = [];
+
+  for (let i = 0; i < numRays; i++) {
+    const angle = (i / numRays) * Math.PI * 2;
+    let lastBright = null;
+    for (let r = searchR * 0.25; r < searchR * 1.1; r += 1.5) {
+      const px = Math.round(cx + Math.cos(angle) * r);
+      const py = Math.round(cy + Math.sin(angle) * r);
+      if (px < 0 || px >= iw || py < 0 || py >= ih) break;
+      const d = ctx.getImageData(px, py, 1, 1).data;
+      const lum = 0.299*d[0] + 0.587*d[1] + 0.114*d[2];
+      if (lastBright !== null && lastBright < 60 && lum > 110) {
+        transitions.push({ r, angle, px, py });
+        break;
+      }
+      lastBright = lum;
+    }
+  }
+
+  if (transitions.length < 8) return { found: false };
+
+  // Fit circle to transition points (centroid + average radius)
+  let sumX = 0, sumY = 0;
+  for (const t of transitions) { sumX += t.px; sumY += t.py; }
+  const mcx = sumX / transitions.length;
+  const mcy = sumY / transitions.length;
+  let sumR = 0;
+  for (const t of transitions) {
+    sumR += Math.hypot(t.px - mcx, t.py - mcy);
+  }
+  const mr = sumR / transitions.length;
+
+  // Quality: check spread of transition count
+  const quality = transitions.length / numRays;
+
+  return {
+    found: quality > 0.35,
+    cx: mcx,
+    cy: mcy,
+    r: mr,
+    quality,
+    count: transitions.length,
+  };
+}
+
+// ── Capture ──
+btnCapture.addEventListener('click', doCapture);
+
+function doCapture() {
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+  if (!vw) return;
+
+  const wrap = video.parentElement;
+  const dw = wrap.offsetWidth;
+  const dh = wrap.offsetHeight;
+
+  const scale = Math.max(dw/vw, dh/vh);
+  const rendW = vw * scale;
+  const rendH = vh * scale;
+  const offX  = (rendW - dw) / 2;
+  const offY  = (rendH - dh) / 2;
+
+  const ring = reticleRing;
+  const cx_d = ring._cx ?? dw*0.62;
+  const cy_d = ring._cy ?? dh*0.42;
+  const r_d  = ring._r  ?? dh*0.14;
+
+  const cx_v = ((dw - cx_d) + offX) / scale;
+  const cy_v = (cy_d + offY) / scale;
+  const r_v  = r_d / scale;
+
+  // Capture frame
+  const oc = captureCanvas;
+  oc.width  = vw;
+  oc.height = vh;
+  const ctx = oc.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(video, 0, 0, vw, vh);
+
+  const limbusData = detectLimbus(ctx, cx_v, cy_v, r_v);
+
+  // If not detected, use reticle center as fallback
+  const capLimbus = limbusData.found ? limbusData : {
+    found: false,
+    cx: cx_v,
+    cy: cy_v,
+    r: r_v,
+  };
+
+  // Capture thumbnail
+  drawThumb(ctx, capLimbus, state.step - 1);
+
+  state.captures[state.step - 1] = {
+    limbusX: capLimbus.cx,
+    limbusY: capLimbus.cy,
+    limbusR: capLimbus.r,
+    found: capLimbus.found,
+    canvasW: vw,
+    canvasH: vh,
+  };
+
+  // Flash frozen
+  frozenOvl.classList.add('visible');
+  setTimeout(() => frozenOvl.classList.remove('visible'), 600);
+
+  if (state.step === 1) {
+    goStep2();
+  } else {
+    goStep3();
+  }
+}
+
+function drawThumb(ctx, limbus, idx) {
+  const tc = thumb1Canvas;
+  const tctx = tc.getContext('2d');
+  // Crop around limbus area
+  const src = ctx.canvas;
+  const cx = limbus.cx;
+  const cy = limbus.cy;
+  const crop = limbus.r * 3;
+  const sx = Math.max(0, cx - crop);
+  const sy = Math.max(0, cy - crop);
+  const sw = Math.min(crop*2, src.width - sx);
+  const sh = Math.min(crop*2, src.height - sy);
+  tctx.drawImage(src, sx, sy, sw, sh, 0, 0, 60, 60);
+  tc.classList.add('visible');
+}
+
+// ── Steps ──
+function goStep2() {
+  state.step = 2;
+  positionReticle();
+  updateStepUI();
+
+  instrText.innerHTML = `
+    <span class="eye-tag">LEFT EYE</span>
+    Move phone <strong>below your left eye</strong>.<br>
+    Keep fixating the <strong>distant target</strong> — don't move your eyes.<br>
+    Align the circle with the <strong>right border of your left iris</strong>, then capture.
+  `;
+  btnCapture.textContent = 'Capture Left Eye';
+
+  thumbRow.style.display = 'flex';
+  thumbInfo.innerHTML = `
+    <span>R eye captured ✓</span><br>
+    Limbus: ${state.captures[0].found ? 'detected' : 'manual'}<br>
+    x=${state.captures[0].limbusX.toFixed(0)}px
+  `;
+
+  updateDebug();
+}
+
+function goStep3() {
+  state.step = 3;
+  updateStepUI();
+  computeAndShow();
+
+  instrText.innerHTML = `
+    <span class="eye-tag" style="background:var(--good);color:#000;">RESULT</span>
+    Measurement complete. Adjust calibration if needed.
+  `;
+  btnCapture.style.display = 'none';
+  resultCard.classList.add('visible');
+  updateDebug();
+}
+
+function updateStepUI() {
+  document.getElementById('step-num').textContent = Math.min(state.step, 3);
+  for (let i = 1; i <= 3; i++) {
+    const el = document.getElementById('s'+i);
+    el.classList.remove('active','done');
+    if (i < state.step) el.classList.add('done');
+    else if (i === state.step) el.classList.add('active');
+  }
+}
+
+// ── Compute PD ──
+function computeAndShow() {
+  const c1 = state.captures[0];
+  const c2 = state.captures[1];
+  if (!c1 || !c2) return;
+
+  // Calibration: mm per pixel via corneal diameter
+  // Use average limbus radius from both captures
+  const avgLimbusR_px = (c1.limbusR + c2.limbusR) / 2;
+  const corneaDiamMM  = parseFloat(calCornea.value); // user-adjustable
+  const mmPerPx       = (corneaDiamMM / 2) / avgLimbusR_px;
+
+  // The right limbus border x position in each frame
+  // Right border of iris = limbusX + limbusR (in video pixel space, unmirrored)
+  const rightBorder1 = c1.limbusX + c1.limbusR; // right eye, frame 1
+  const rightBorder2 = c2.limbusX + c2.limbusR; // left eye, frame 2
+
+  // Visual odometry: how much did the camera move between shots?
+  // We don't have feature matching yet — so in v0.1 we assume
+  // the patient's head didn't move, and compute PD purely from
+  // the difference in limbus x-positions + known limbus radius symmetry.
+  //
+  // PD = distance between right limbus borders of both eyes
+  // In a single frame they would be at known separation.
+  // With two frames: we need the camera displacement.
+  //
+  // For now (v0.1): treat both captures as if in same coordinate space
+  // (valid if camera stays roughly same distance and angle,
+  //  and patient head is still). The x-shift between the two
+  //  right-limbus borders IS the PD in pixels.
+  //
+  // NOTE: both frames have same canvas width (same camera),
+  //       mirroring cancels since we use raw video coords.
+  //       limbusX is already in unmirrored video space.
+
+  const pdPx = Math.abs(rightBorder2 - rightBorder1);
+  const pdMM = pdPx * mmPerPx + parseFloat(calOffset.value);
+
+  pdValue.textContent = pdMM.toFixed(1);
+  pdBreakdown.innerHTML = `
+    <div>R limbus border: <span>${rightBorder1.toFixed(0)}px</span></div>
+    <div>L limbus border: <span>${rightBorder2.toFixed(0)}px</span></div>
+    <div>Δ: <span>${pdPx.toFixed(0)}px</span></div>
+    <div>Scale: <span>${mmPerPx.toFixed(3)} mm/px</span></div>
+  `;
+
+  updateDebug(pdMM, pdPx, mmPerPx, avgLimbusR_px);
+}
+
+// ── Debug ──
+function updateDebug(pdMM, pdPx, mmPx, limbR) {
+  const c1 = state.captures[0];
+  const c2 = state.captures[1];
+  debugPanel.innerHTML = `
+    <div>STEP: <span>${state.step}</span></div>
+    ${c1 ? `<div>R eye limbus: <span>x=${c1.limbusX.toFixed(1)} y=${c1.limbusY.toFixed(1)} r=${c1.limbusR.toFixed(1)} found=${c1.found}</span></div>` : ''}
+    ${c2 ? `<div>L eye limbus: <span>x=${c2.limbusX.toFixed(1)} y=${c2.limbusY.toFixed(1)} r=${c2.limbusR.toFixed(1)} found=${c2.found}</span></div>` : ''}
+    ${limbR !== undefined ? `<div>Avg limbus r: <span>${limbR.toFixed(1)}px</span></div>` : ''}
+    ${mmPx  !== undefined ? `<div>mm/px: <span>${mmPx.toFixed(4)}</span></div>` : ''}
+    ${pdPx  !== undefined ? `<div>PD px: <span>${pdPx.toFixed(1)}</span></div>` : ''}
+    ${pdMM  !== undefined ? `<div>PD mm (raw): <span>${(pdMM - parseFloat(calOffset.value)).toFixed(1)}</span></div>` : ''}
+    ${pdMM  !== undefined ? `<div>PD mm (cal): <span>${pdMM.toFixed(1)}</span></div>` : ''}
+    <div>Video: <span>${video.videoWidth}×${video.videoHeight}</span></div>
+  `;
+}
+
+function toggleDebug() {
+  debugPanel.classList.toggle('visible');
+}
+
+// ── Reset ──
+function resetAll() {
+  state.step = 1;
+  state.captures = [null, null];
+  frozenOvl.classList.remove('visible');
+  resultCard.classList.remove('visible');
+  thumbRow.style.display = 'none';
+  thumb1Canvas.classList.remove('visible');
+  btnCapture.style.display = '';
+  btnCapture.textContent = 'Capture Right Eye';
+  instrText.innerHTML = `
+    <span class="eye-tag">RIGHT EYE</span>
+    Position phone <strong>below</strong> your right eye.<br>
+    Fixate a <strong>distant target</strong> straight ahead.<br>
+    Align the circle with the <strong>right border of your iris</strong>, then capture.
+  `;
+  pdValue.textContent = '—';
+  debugPanel.innerHTML = '';
+  positionReticle();
+  updateStepUI();
+  requestAnimationFrame(analysisLoop);
+}
+
+// ── Init ──
+startCamera();
+</script>
+</body>
+</html>
