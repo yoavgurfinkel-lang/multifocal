@@ -1,0 +1,1433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>PD Measure</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{background:#0c0c12;color:#e2e2ee;font-family:'Courier New',monospace;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:16px 12px 24px;}
+h1{font-size:21px;font-weight:900;background:linear-gradient(90deg,#00e5ff,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:.05em;}
+.sub{font-size:10px;color:#444;letter-spacing:.25em;margin-bottom:20px;}
+.card{background:#13131e;border:1px solid #1e1e2e;border-radius:12px;padding:16px;margin-bottom:12px;width:100%;max-width:460px;}
+.clabel{font-size:10px;color:#444;letter-spacing:.22em;margin-bottom:12px;}
+.field{margin-bottom:10px;}.field:last-child{margin-bottom:0;}
+.field label{display:block;font-size:11px;color:#777;margin-bottom:4px;}
+.field input{width:100%;background:#0a0a14;border:1px solid #2a2a3e;border-radius:8px;color:#e2e2ee;padding:10px 12px;font-size:17px;font-family:inherit;outline:none;}
+.btn{width:100%;max-width:460px;padding:14px;border-radius:10px;font-size:13px;letter-spacing:.15em;cursor:pointer;font-family:inherit;border:none;display:block;margin-bottom:9px;text-align:center;}
+.btn-primary{background:linear-gradient(135deg,#00e5ff18,#a78bfa18);border:1px solid #00e5ff66!important;color:#00e5ff;}
+.btn-green{background:#00e57718;border:1px solid #00e57766!important;color:#00e577;font-size:15px;padding:16px;}
+.btn-ghost{background:transparent;border:1px solid #1e1e2e!important;color:#444;}
+.hidden{display:none!important;}
+#err{color:#ff6b35;font-size:12px;text-align:center;margin-bottom:8px;width:100%;max-width:460px;min-height:16px;}
+.photo-slot{border:2px dashed #2a2a3e;border-radius:10px;overflow:hidden;background:#0a0a14;position:relative;cursor:pointer;width:100%;max-width:460px;margin-bottom:10px;min-height:120px;display:flex;align-items:center;justify-content:center;}
+.photo-slot img{width:100%;display:block;}
+.photo-slot .slot-lbl{font-size:12px;color:#555;text-align:center;padding:12px;}
+.photo-slot input{position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer;}
+.photo-slot .tick{position:absolute;top:8px;right:8px;background:#00e577;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:bold;color:#000;}
+.photo-slot.done{border-color:#00e57766;}
+/* Canvas wrapper for zoom */
+.canvas-wrap{position:relative;width:100%;max-width:460px;margin-bottom:8px;overflow:hidden;border-radius:10px;border:1px solid #1e1e2e;background:#000;}
+#cv-main{width:100%;display:block;touch-action:none;cursor:crosshair;}
+.zoom-badge{position:absolute;top:6px;right:8px;background:rgba(0,0,0,.7);color:#00e5ff;font-size:10px;font-family:'Courier New',monospace;padding:3px 7px;border-radius:5px;pointer-events:none;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;width:100%;max-width:460px;}
+.metric{background:#13131e;border:1px solid #1e1e2e;border-radius:8px;padding:10px 12px;}
+.ml{font-size:10px;color:#444;margin-bottom:2px;}
+.mv{font-size:24px;font-weight:700;color:#00e5ff;}
+.mv.org{color:#ff6b35;}
+.mv span{font-size:11px;color:#555;margin-left:2px;}
+.optbox{background:#080f08;border:1px solid #152015;border-radius:8px;padding:12px;margin-bottom:12px;font-size:11px;color:#2a5a2a;line-height:1.9;width:100%;max-width:460px;}
+.notice{margin-top:12px;font-size:10px;color:#222;text-align:center;width:100%;max-width:460px;line-height:1.6;}
+.pt-tabs{display:flex;gap:5px;margin-bottom:8px;width:100%;max-width:460px;flex-wrap:wrap;}
+.pt-tab{flex:1;min-width:60px;padding:9px 4px;border-radius:8px;font-size:10px;font-family:inherit;border:1px solid #2a2a3e;background:#13131e;color:#666;cursor:pointer;text-align:center;letter-spacing:.04em;line-height:1.3;}
+.pt-tab.active{border-color:var(--col);color:var(--col);background:color-mix(in srgb,var(--col) 12%,transparent);}
+.controller{width:100%;max-width:460px;margin-bottom:10px;}
+.ctrl-row{display:flex;gap:5px;justify-content:center;margin-bottom:7px;align-items:center;}
+.ctrl-label{font-size:10px;color:#444;letter-spacing:.1em;width:70px;text-align:right;margin-right:4px;}
+.step-btn{padding:7px 11px;border-radius:6px;font-size:11px;font-family:inherit;border:1px solid #2a2a3e;background:#13131e;color:#666;cursor:pointer;}
+.step-btn.active{border-color:#00e5ff;color:#00e5ff;background:#00e5ff15;}
+.zoom-btn{padding:7px 14px;border-radius:6px;font-size:14px;font-family:inherit;border:1px solid #2a2a3e;background:#13131e;color:#a78bfa;cursor:pointer;line-height:1;}
+.zoom-btn:active{background:#a78bfa22;border-color:#a78bfa;}
+.zoom-val{font-size:12px;color:#a78bfa;width:36px;text-align:center;}
+.dpad{display:grid;grid-template-columns:52px 52px 52px;grid-template-rows:52px 52px 52px;gap:4px;margin:0 auto;}
+.dpad-btn{border-radius:10px;border:1px solid #2a2a3e;background:#13131e;color:#888;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;user-select:none;-webkit-user-select:none;}
+.dpad-btn:active,.dpad-btn.pressed{background:#00e5ff22;border-color:#00e5ff;color:#00e5ff;}
+.dpad-center{background:#1a1a2e;border-color:#333;color:#555;font-size:9px;letter-spacing:.05em;text-align:center;line-height:1.3;}
+</style>
+</head>
+<body>
+
+<!-- SETUP removed - app starts directly at photo -->
+
+<!-- PHOTO -->
+<div id="s-photo">
+  <div style="text-align:center;margin-bottom:16px;">
+    <div style="font-size:9px;color:#334;letter-spacing:.3em;margin-bottom:4px;">OPTICAL MEASUREMENT SYSTEM</div>
+    <div style="font-size:18px;font-weight:900;background:linear-gradient(90deg,#00e5ff,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:.05em;">MONOCULAR PD + SEG</div>
+  </div>
+  <div style="font-size:11px;color:#555;line-height:1.5;margin-bottom:10px;width:100%;max-width:460px;">
+    Center your face in the guide. Glasses should fill the frame. Eyes open, head level.
+  </div>
+  <!-- Live viewfinder with centering guide -->
+  <div style="position:relative;width:100%;max-width:460px;margin-bottom:10px;border-radius:10px;overflow:hidden;background:#000;aspect-ratio:3/4;">
+    <video id="vf" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;display:block;transform:scaleX(-1);"></video>
+    <!-- Camera switch button -->
+    <button id="btn-torch" style="position:absolute;top:10px;left:10px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,220,0,0.5);border-radius:8px;color:#ffdd00;font-size:11px;font-family:'Courier New',monospace;padding:6px 10px;cursor:pointer;">🔦 OFF</button>
+    <button id="btn-camswitch" style="position:absolute;top:10px;right:10px;background:rgba(0,0,0,0.5);border:1px solid rgba(0,229,255,0.5);border-radius:8px;color:#00e5ff;font-size:11px;font-family:'Courier New',monospace;padding:6px 10px;cursor:pointer;">🔄 REAR</button>
+    <!-- Optical zoom controls -->
+    <div id="zoom-ctrl" style="position:absolute;bottom:90px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;background:rgba(0,0,0,0.55);border-radius:20px;padding:6px 12px;">
+      <button id="cam-zoom-out" style="background:none;border:none;color:#00e5ff;font-size:20px;font-family:'Courier New',monospace;cursor:pointer;width:24px;line-height:1;">−</button>
+      <span id="cam-zoom-val" style="color:#00e5ff;font-size:12px;font-family:'Courier New',monospace;min-width:38px;text-align:center;">1.0×</span>
+      <button id="cam-zoom-in" style="background:none;border:none;color:#00e5ff;font-size:20px;font-family:'Courier New',monospace;cursor:pointer;width:24px;line-height:1;">+</button>
+    </div>
+    <!-- Distance status badge -->
+    <div id="dist-badge" style="position:absolute;top:50px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.6);border:1.5px solid rgba(255,170,0,0.7);border-radius:20px;color:#ffaa00;font-size:12px;font-family:'Courier New',monospace;padding:7px 16px;letter-spacing:.08em;white-space:nowrap;transition:all 0.2s;">◷ DISTANCE…</div>
+    <!-- Grid + centering overlay -->
+    <svg viewBox="0 0 300 400" xmlns="http://www.w3.org/2000/svg"
+      style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;">
+      <!-- Grid every 14px to compensate for 1.8x video zoom -->
+      <line x1="14"  y1="0" x2="14"  y2="400" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="28"  y1="0" x2="28"  y2="400" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="42"  y1="0" x2="42"  y2="400" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="56"  y1="0" x2="56"  y2="400" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="70"  y1="0" x2="70"  y2="400" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="84"  y1="0" x2="84"  y2="400" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="98"  y1="0" x2="98"  y2="400" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="112" y1="0" x2="112" y2="400" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="126" y1="0" x2="126" y2="400" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="140" y1="0" x2="140" y2="400" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="150" y1="0" x2="150" y2="400" stroke="rgba(0,229,255,0.5)" stroke-width="1.2"/>
+      <line x1="160" y1="0" x2="160" y2="400" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="174" y1="0" x2="174" y2="400" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="188" y1="0" x2="188" y2="400" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="202" y1="0" x2="202" y2="400" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="216" y1="0" x2="216" y2="400" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="230" y1="0" x2="230" y2="400" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="244" y1="0" x2="244" y2="400" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="258" y1="0" x2="258" y2="400" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="272" y1="0" x2="272" y2="400" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="286" y1="0" x2="286" y2="400" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <!-- Horizontal lines every 14px -->
+      <line x1="0" y1="14"  x2="300" y2="14"  stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="0" y1="28"  x2="300" y2="28"  stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="0" y1="42"  x2="300" y2="42"  stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="0" y1="56"  x2="300" y2="56"  stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="0" y1="70"  x2="300" y2="70"  stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="0" y1="84"  x2="300" y2="84"  stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="0" y1="98"  x2="300" y2="98"  stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="0" y1="112" x2="300" y2="112" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="0" y1="126" x2="300" y2="126" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="0" y1="165" x2="300" y2="165" stroke="rgba(0,229,255,0.5)" stroke-width="1.2"/>
+      <line x1="0" y1="154" x2="300" y2="154" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="0" y1="168" x2="300" y2="168" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="0" y1="182" x2="300" y2="182" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="0" y1="196" x2="300" y2="196" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="0" y1="210" x2="300" y2="210" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="0" y1="224" x2="300" y2="224" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="0" y1="238" x2="300" y2="238" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="0" y1="252" x2="300" y2="252" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="0" y1="266" x2="300" y2="266" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="0" y1="280" x2="300" y2="280" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="0" y1="294" x2="300" y2="294" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="0" y1="308" x2="300" y2="308" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="0" y1="322" x2="300" y2="322" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="0" y1="336" x2="300" y2="336" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="0" y1="350" x2="300" y2="350" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="0" y1="364" x2="300" y2="364" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="0" y1="378" x2="300" y2="378" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <line x1="0" y1="392" x2="300" y2="392" stroke="rgba(0,229,255,0.18)" stroke-width="0.7"/>
+      <!-- TARGET scaled 1.8x -->
+      <circle cx="150" cy="165" r="32" fill="none" stroke="rgba(0,80,200,0.95)" stroke-width="1.4"/>
+      <circle cx="150" cy="165" r="3" fill="rgba(0,80,200,0.95)"/>
+      <line x1="100" y1="165" x2="140" y2="165" stroke="rgba(0,80,200,0.95)" stroke-width="1.4"/>
+      <line x1="160" y1="165" x2="200" y2="165" stroke="rgba(0,80,200,0.95)" stroke-width="1.4"/>
+      <line x1="150" y1="115" x2="150" y2="157" stroke="rgba(0,80,200,0.95)" stroke-width="1.4"/>
+      <line x1="150" y1="173" x2="150" y2="215" stroke="rgba(0,80,200,0.95)" stroke-width="1.4"/>
+      <circle cx="150" cy="165" r="16" fill="none" stroke="rgba(0,80,200,0.5)" stroke-width="0.8"/>
+      <!-- Face oval scaled 1.8x -->
+      <text x="150" y="396" text-anchor="middle" fill="rgba(0,229,255,0.5)" font-size="8" font-family="Courier New">CENTER FACE · HOLD LEVEL</text>
+    </svg>
+    <!-- Capture button overlay -->
+    <button id="btn-capture" style="position:absolute;bottom:14px;left:50%;transform:translateX(-50%);width:62px;height:62px;border-radius:50%;background:rgba(255,255,255,0.15);border:3px solid rgba(255,255,255,0.7);cursor:pointer;display:flex;align-items:center;justify-content:center;">
+      <div style="width:46px;height:46px;border-radius:50%;background:white;"></div>
+    </button>
+    <!-- Fallback file input (hidden, used if camera fails) -->
+    <input type="file" accept="image/*" capture="environment" id="inp" style="display:none"/>
+  </div>
+  <div id="vf-status" style="font-size:10px;color:#444;text-align:center;margin-bottom:8px;"></div>
+  <div class="photo-slot hidden" id="slot">
+    <div class="slot-lbl">📷 TAP TO CHOOSE PHOTO</div>
+    <input type="file" accept="image/*" id="inp2"/>
+  </div>
+  <button class="btn btn-green" id="btn-goplace" disabled>NEXT — PLACE MARKERS →</button>
+  <button class="btn btn-ghost" id="btn-back">← BACK</button>
+</div>
+
+<!-- PLACE MARKERS -->
+<div id="s-place" class="hidden">
+  <div class="grid2 hidden" id="results-grid">
+    <div class="metric"><div class="ml">BINOCULAR PD</div><div class="mv" id="r-pd">--<span>mm</span></div></div>
+    <div class="metric"><div class="ml">MONO PD R / L</div><div class="mv" style="font-size:15px">
+      <span id="r-pdr" style="color:#ff6b35">--</span>/<span id="r-pdl" style="color:#a78bfa">--</span><span>mm</span>
+    </div></div>
+    <div class="metric"><div class="ml">SEG RIGHT</div><div class="mv org" id="r-segr">--<span>mm</span></div></div>
+    <div class="metric"><div class="ml">SEG LEFT</div><div class="mv org" id="r-segl">--<span>mm</span></div></div>
+  </div>
+
+  <!-- Calibration bar -->
+  <div id="calib-bar" style="width:100%;max-width:460px;background:#0d1a0d;border:1px solid #1a3a1a;border-radius:10px;padding:12px 14px;margin-bottom:8px;display:none;">
+    <div style="font-size:10px;color:#3a7a3a;letter-spacing:.2em;margin-bottom:8px;">⚙ CALIBRATION</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <span style="font-size:11px;color:#555;flex:1;">Bridge→pupil ref (mm)</span>
+      <input type="range" id="cal-bridge-sl" min="26" max="38" step="0.5" value="32"
+        style="flex:2;accent-color:#00e577;">
+      <span id="cal-bridge-v" style="font-size:13px;color:#00e577;font-family:'Courier New',monospace;min-width:44px;text-align:right;">32.0</span>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <div style="flex:1;font-size:11px;color:#444;" id="cal-status-lbl">Default 32mm · not calibrated</div>
+      <button id="btn-cal-self" style="padding:7px 12px;border-radius:7px;border:1px solid #00e57766;background:#00e57711;color:#00e577;font-size:10px;font-family:'Courier New',monospace;cursor:pointer;letter-spacing:.08em;white-space:nowrap;">
+        ✓ SET MY PD
+      </button>
+    </div>
+    <!-- Known PD input (shown when calibrating) -->
+    <div id="cal-known-wrap" style="display:none;margin-top:8px;display:none;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:11px;color:#555;">My known PD (mm)</span>
+        <input type="number" id="cal-known-pd" value="64" inputmode="decimal"
+          style="width:70px;background:#0a0a14;border:1px solid #2a2a3e;border-radius:6px;color:#00e577;font-size:16px;font-family:'Courier New',monospace;padding:5px 8px;text-align:center;outline:none;">
+        <button id="btn-cal-confirm2" style="padding:7px 14px;border-radius:7px;border:1px solid #00e57766;background:#00e577;color:#000;font-size:11px;font-family:'Courier New',monospace;cursor:pointer;font-weight:700;">SAVE</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="canvas-wrap" id="cv-wrap">
+    <canvas id="cv-main"></canvas>
+    <div class="zoom-badge" id="zoom-badge">1×</div>
+  </div>
+
+  
+
+  <div class="pt-tabs">
+    <button class="pt-tab" data-pt="rP"     style="--col:#ff6b35">R PUPIL</button>
+    <button class="pt-tab" data-pt="lP"     style="--col:#a78bfa">L PUPIL</button>
+    <button class="pt-tab" data-pt="bridge" style="--col:#00e5ff">BRIDGE</button>
+    <button class="pt-tab" data-pt="rB"     style="--col:#ff8800">R BTM</button>
+    <button class="pt-tab" data-pt="lB"     style="--col:#ffdd00">L BTM</button>
+  </div>
+  <button id="btn-flip" class="btn btn-ghost" style="display:none;">↔ FLIP MIRROR</button>
+  <!-- Action buttons row -->
+  <div style="display:flex;gap:6px;width:100%;max-width:460px;margin-bottom:8px;">
+    <button id="btn-center" style="flex:1;padding:9px 4px;border-radius:8px;font-size:10px;font-family:'Courier New',monospace;border:1px solid #2a2a3e;background:#13131e;color:#00e5ff;cursor:pointer;letter-spacing:.05em;">⊕ CENTER</button>
+    <button id="btn-results" style="flex:2;padding:9px 4px;border-radius:8px;font-size:10px;font-family:'Courier New',monospace;border:1px solid #00e57766;background:#00e57711;color:#00e577;cursor:pointer;letter-spacing:.05em;">✓ SHOW RESULTS</button>
+  </div>
+
+  <div class="controller">
+    <!-- Step size row -->
+    <div class="ctrl-row">
+      <span class="ctrl-label">STEP</span>
+      <button class="step-btn" data-step="1">1px</button>
+      <button class="step-btn active" data-step="5">5px</button>
+      <button class="step-btn" data-step="15">15px</button>
+      <button class="step-btn" data-step="40">40px</button>
+    </div>
+    <!-- Zoom row -->
+    <div class="ctrl-row">
+      <span class="ctrl-label">ZOOM</span>
+      <button class="zoom-btn" id="z-out">−</button>
+      <span class="zoom-val" id="z-val">1×</span>
+      <button class="zoom-btn" id="z-in">+</button>
+    </div>
+<!-- D-pad -->
+    <div class="dpad">
+      <div></div>
+      <button class="dpad-btn" id="d-up">▲</button>
+      <div></div>
+      <button class="dpad-btn" id="d-left">◀</button>
+      <div class="dpad-btn dpad-center">MOVE<br/>POINT</div>
+      <button class="dpad-btn" id="d-right">▶</button>
+      <div></div>
+      <button class="dpad-btn" id="d-down">▼</button>
+      <div></div>
+    </div>
+  </div>
+
+  <div class="card" id="results-card" style="display:none">
+    <div class="clabel">PATIENT</div>
+    <div class="field"><input type="text" id="pn" placeholder="Patient name…"/></div>
+    <div class="field" style="margin-bottom:0"><input type="text" id="pnt" placeholder="Notes…"/></div>
+  </div>
+  <div class="optbox" id="results-optbox" style="display:none">
+    <div style="color:#3a7a3a;font-size:10px;letter-spacing:.15em;margin-bottom:4px;">FOR YOUR OPTICIAN</div>
+    <span id="opt-text"></span>
+  </div>
+  <button class="btn btn-primary hidden" id="btn-save">SAVE IMAGE</button>
+  <button class="btn btn-ghost" id="btn-again">MEASURE AGAIN</button>
+</div>
+
+<!-- CALIBRATION SCREEN -->
+<div id="s-calib" class="hidden">
+  <div style="text-align:center;margin-bottom:12px;">
+    <div style="font-size:9px;color:#334;letter-spacing:.3em;margin-bottom:4px;">STEP 2 OF 2</div>
+    <div style="font-size:18px;font-weight:900;background:linear-gradient(90deg,#00e5ff,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:.05em;">CALIBRATION</div>
+    <div style="font-size:11px;color:#555;margin-top:4px;">Tap pupil centers to compute real-world scale</div>
+  </div>
+
+  <!-- Distance slider -->
+  <div class="card" style="margin-bottom:8px;">
+    <div class="clabel">SHOOTING DISTANCE</div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <input type="range" id="cal-dist-sl" min="20" max="80" step="1" value="40"
+        style="flex:1;accent-color:#00e5ff;">
+      <span id="cal-dist-v" style="font-size:14px;color:#00e5ff;font-family:'Courier New',monospace;min-width:48px;text-align:right;">40 cm</span>
+    </div>
+    <div id="cal-exif-badge" style="font-size:11px;color:#555;margin-top:6px;">Reading EXIF…</div>
+  </div>
+
+  <!-- Canvas (reuses same procImg) -->
+  <div class="canvas-wrap" id="cal-cv-wrap">
+    <canvas id="cal-cv"></canvas>
+    <div class="zoom-badge" id="cal-zoom-badge">1×</div>
+  </div>
+
+  <!-- Calibration marker status -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+    <div class="metric" id="cal-mb-r"><div class="ml">R PUPIL CENTER</div><div class="mv" id="cal-mv-r" style="font-size:16px;">tap →</div></div>
+    <div class="metric" id="cal-mb-l"><div class="ml">L PUPIL CENTER</div><div class="mv" id="cal-mv-l" style="font-size:16px;">tap →</div></div>
+  </div>
+
+  <!-- Active point tabs -->
+  <div class="pt-tabs">
+    <button class="pt-tab active" id="cal-tab-r" data-calpt="rP" style="--col:#ff6b35" onclick="setCalPt('rP')">R PUPIL</button>
+    <button class="pt-tab"        id="cal-tab-l" data-calpt="lP" style="--col:#a78bfa" onclick="setCalPt('lP')">L PUPIL</button>
+  </div>
+
+  <!-- Result -->
+  <div class="card" id="cal-result-card" style="display:none;border-color:#00e57766;margin-bottom:8px;">
+    <div class="clabel">CALIBRATED BINOCULAR PD</div>
+    <div style="font-size:42px;font-weight:700;color:#00e5ff;font-family:'Courier New',monospace;" id="cal-pd-display">—</div>
+    <div style="font-size:11px;color:#555;margin-top:4px;" id="cal-pd-detail"></div>
+  </div>
+
+  <!-- Trim -->
+  <div class="card" id="cal-trim-card" style="display:none;margin-bottom:8px;">
+    <div class="clabel">PD TRIM (mm)</div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <input type="range" id="cal-trim" min="-8" max="8" step="0.5" value="0" style="flex:1;accent-color:#00e5ff;">
+      <span id="cal-trim-v" style="font-size:14px;color:#00e5ff;font-family:'Courier New',monospace;min-width:44px;text-align:right;">0.0</span>
+    </div>
+  </div>
+
+  <!-- Controllers (same as main) -->
+  <div class="controller">
+    <div class="ctrl-row">
+      <span class="ctrl-label">STEP</span>
+      <button class="step-btn" data-calstep="1">1px</button>
+      <button class="step-btn active" data-calstep="5">5px</button>
+      <button class="step-btn" data-calstep="15">15px</button>
+      <button class="step-btn" data-calstep="40">40px</button>
+    </div>
+    <div class="ctrl-row">
+      <span class="ctrl-label">ZOOM</span>
+      <button class="zoom-btn" id="cal-z-out">−</button>
+      <span class="zoom-val" id="cal-z-val">1×</span>
+      <button class="zoom-btn" id="cal-z-in">+</button>
+    </div>
+    <div class="dpad">
+      <div></div>
+      <button class="dpad-btn" id="cal-d-up">▲</button>
+      <div></div>
+      <button class="dpad-btn" id="cal-d-left">◀</button>
+      <div class="dpad-btn dpad-center">MOVE<br/>POINT</div>
+      <button class="dpad-btn" id="cal-d-right">▶</button>
+      <div></div>
+      <button class="dpad-btn" id="cal-d-down">▼</button>
+      <div></div>
+    </div>
+  </div>
+
+  <button class="btn btn-green" id="btn-cal-confirm" disabled style="margin-bottom:8px;">✓ CONFIRM PD &amp; SHOW RESULTS</button>
+  <button class="btn btn-ghost" id="btn-cal-back">← BACK TO MARKERS</button>
+</div>
+
+<div class="notice">FOR GUIDANCE ONLY · NOT A MEDICAL DEVICE · Examiner view (mirrored)</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const show=id=>$(id).classList.remove('hidden');
+const hide=id=>$(id).classList.add('hidden');
+
+let binoPD=64, rawCanvas=null, procImg=null, captureFacing="user"; // binoPD will be set by calibration
+let ppm=1, rPdR=0,rPdL=0,rSegR=0,rSegL=0;
+let showLabels=false;
+let activePt='rP';
+let stepSize=5;
+let zoomLevel=1;
+const ZOOM_STEPS=[1,1.5,2,3,5];
+let zoomIdx=0;
+
+// Calibration state
+const CAL = {
+  pts: { rP: null, lP: null },
+  activePt: 'rP',
+  stepSize: 5,
+  zoomIdx: 0,
+  focalMM: null,
+  distMM: 400,
+  trimVal: 0,
+  sensorW: 7.21, // Redmi Note 13 HM6 sensor width mm
+};
+
+let pts={rP:null,lP:null,bridge:null,rB:null,lB:null};
+const PT_COLORS={rP:'#ff6b35',lP:'#a78bfa',bridge:'#00e5ff',rB:'#ff8800',lB:'#ffdd00'};
+const PT_ORDER=['rP','lP','bridge','rB','lB'];
+
+// ── File load ──────────────────────────────────────────────────────────────────
+function loadFile(file){
+  return new Promise(res=>{
+    const im=new Image(), url=URL.createObjectURL(file);
+    im.onload=()=>{
+      const c=document.createElement('canvas');
+      c.width=im.naturalWidth; c.height=im.naturalHeight;
+      c.getContext('2d').drawImage(im,0,0);
+      URL.revokeObjectURL(url); res(c);
+    };
+    im.onerror=()=>res(null);
+    im.src=url;
+  });
+}
+
+function flipH(src){
+  const c=document.createElement('canvas');
+  c.width=src.width; c.height=src.height;
+  const ctx=c.getContext('2d');
+  ctx.translate(src.width,0); ctx.scale(-1,1);
+  ctx.drawImage(src,0,0);
+  return c;
+}
+
+function roundHalf(x){ return Math.round(x*2)/2; }
+function fmtHalf(x){ const r=roundHalf(x); return r%1===0?r.toFixed(0):r.toFixed(1); }
+
+function defaultPts(W,H){
+  return {
+    rP:    {x:Math.round(W*0.35),y:Math.round(H*0.42)},
+    lP:    {x:Math.round(W*0.65),y:Math.round(H*0.42)},
+    bridge:{x:Math.round(W*0.50),y:Math.round(H*0.42)},
+    rB:    {x:Math.round(W*0.35),y:Math.round(H*0.42)+Math.round(W*0.117)},
+    lB:    {x:Math.round(W*0.65),y:Math.round(H*0.42)+Math.round(W*0.117)},
+  };
+}
+
+// ── DRAW ───────────────────────────────────────────────────────────────────────
+// Zoom: render a zoomed crop of procImg centred on the active point.
+// All pts coords are always in procImg full-res coords.
+function draw(){
+  const cvs=$('cv-main');
+  const IW=procImg.width, IH=procImg.height;
+  const zoom=ZOOM_STEPS[zoomIdx];
+
+  // Viewport: what portion of the image we show
+  // At zoom=1 we show the whole image. At zoom=N we show 1/N of it.
+  const vw=IW/zoom, vh=IH/zoom;
+
+  // Centre viewport on active point (or image centre if no active)
+  const ap=pts[activePt];
+  const cx=ap?ap.x:IW/2, cy=ap?ap.y:IH/2;
+  let vx=cx-vw/2, vy=cy-vh/2;
+  // Clamp so we don't go outside image
+  vx=Math.max(0,Math.min(IW-vw,vx));
+  vy=Math.max(0,Math.min(IH-vh,vy));
+
+  // Canvas display size = wrapper width, aspect-correct height
+  const wrap=$('cv-wrap');
+  const dispW=wrap.clientWidth||320;
+  const dispH=Math.round(dispW*(vh/vw));
+  const dpr=window.devicePixelRatio||1;
+
+  // Physical pixel size for crispness on high-DPI screens
+  cvs.style.width=dispW+'px';
+  cvs.style.height=dispH+'px';
+  cvs.width=Math.round(dispW*dpr);
+  cvs.height=Math.round(dispH*dpr);
+
+  const c=cvs.getContext('2d');
+  c.scale(dpr,dpr); // all coords below are in CSS px
+
+  // Draw viewport crop of full-res image
+  c.drawImage(procImg, vx,vy,vw,vh, 0,0,dispW,dispH);
+
+  // Scale factor: image px → CSS px
+  const sx=dispW/vw, sy=dispH/vh;
+
+  // Helper: image coords → CSS display coords
+  const id2d=(x,y)=>({x:(x-vx)*sx, y:(y-vy)*sy});
+
+  const{rP,lP,bridge,rB,lB}=pts;
+  if(!rP) return;
+
+  // Marker sizes in CSS px — same physical size regardless of zoom or DPR
+  const dot=4;
+  const arm=12;
+  const lw=1.2;
+  const fs=12;
+
+  // ── PD lines ──
+  c.lineWidth=lw; c.setLineDash([]);
+  const rPd=id2d(rP.x,rP.y), lPd=id2d(lP.x,lP.y);
+  const brd=id2d(bridge.x,bridge.y);
+  const rBd=id2d(rB.x,rB.y), lBd=id2d(lB.x,lB.y);
+
+  c.strokeStyle='#ff4444';
+  c.beginPath(); c.moveTo(rPd.x,rPd.y); c.lineTo(brd.x+8,rPd.y); c.stroke();
+  c.strokeStyle='#aa66ff';
+  c.beginPath(); c.moveTo(lPd.x,lPd.y); c.lineTo(brd.x-8,lPd.y); c.stroke();
+  // Seg lines (vertical)
+  c.strokeStyle='#ff8800';
+  c.beginPath(); c.moveTo(rPd.x,rPd.y); c.lineTo(rPd.x,rBd.y); c.stroke();
+  c.strokeStyle='#ffdd00';
+  c.beginPath(); c.moveTo(lPd.x,lPd.y); c.lineTo(lPd.x,lBd.y); c.stroke();
+  // Seg horizontal lines at bottom markers (dashed, for visual reference)
+  c.setLineDash([4,3]);
+  c.strokeStyle='#ff8800';
+  c.beginPath(); c.moveTo(rBd.x,rBd.y); c.lineTo(brd.x+8,rBd.y); c.stroke();
+  c.strokeStyle='#ffdd00';
+  c.beginPath(); c.moveTo(lBd.x,lBd.y); c.lineTo(brd.x-8,lBd.y); c.stroke();
+  c.setLineDash([]);
+
+  // ── Markers ──
+  const dispPts={rP:rPd,lP:lPd,bridge:brd,rB:rBd,lB:lBd};
+  PT_ORDER.forEach(key=>{
+    const p=dispPts[key];
+    const col=PT_COLORS[key];
+    const isActive=key===activePt;
+
+    if(key==='bridge'){
+      c.save();
+      // Bold center dot only + vertical line, no rings
+      c.fillStyle='rgba(0,150,255,0.95)';
+      c.beginPath(); c.arc(p.x,p.y,4,0,Math.PI*2); c.fill();
+      c.strokeStyle='rgba(0,150,255,0.95)'; c.lineWidth=2.5; c.setLineDash([]);
+      c.beginPath();
+      c.moveTo(p.x,p.y-28); c.lineTo(p.x,p.y-6);
+      c.moveTo(p.x,p.y+6);  c.lineTo(p.x,p.y+28);
+      c.stroke();
+      c.restore();
+      return;
+    }
+
+    // Active outer ring
+    if(isActive){
+      c.strokeStyle=col; c.lineWidth=1.5;
+      c.beginPath(); c.arc(p.x,p.y,dot+arm*0.55,0,Math.PI*2); c.stroke();
+    }
+    // Dot
+    c.fillStyle=col;
+    c.beginPath(); c.arc(p.x,p.y,dot,0,Math.PI*2); c.fill();
+    c.strokeStyle='rgba(0,0,0,0.7)'; c.lineWidth=0.8;
+    c.beginPath(); c.arc(p.x,p.y,dot,0,Math.PI*2); c.stroke();
+    // Crosshair with gap
+    c.strokeStyle=col; c.lineWidth=1;
+    const gap=dot+2;
+    c.beginPath();
+    c.moveTo(p.x-arm,p.y); c.lineTo(p.x-gap,p.y);
+    c.moveTo(p.x+gap,p.y); c.lineTo(p.x+arm,p.y);
+    c.moveTo(p.x,p.y-arm); c.lineTo(p.x,p.y-gap);
+    c.moveTo(p.x,p.y+gap); c.lineTo(p.x,p.y+arm);
+    c.stroke();
+  });
+
+  // ── Labels (only when showLabels=true) ──
+  if(showLabels){
+    c.font=`bold ${fs}px Courier New`;
+    function lbl(txt,x,y,col){
+      const tw=c.measureText(txt).width;
+      c.fillStyle='rgba(0,0,0,.88)'; c.fillRect(x-tw/2-2,y-fs+1,tw+4,fs+4);
+      c.fillStyle=col; c.textAlign='center'; c.fillText(txt,x,y);
+    }
+    function lblL(txt,x,y,col){
+      const tw=c.measureText(txt).width;
+      c.fillStyle='rgba(0,0,0,.88)'; c.fillRect(x-1,y-fs+1,tw+4,fs+4);
+      c.fillStyle=col; c.textAlign='left'; c.fillText(txt,x,y);
+    }
+    lbl(fmtHalf(rPdR)+'mm',(rPd.x+brd.x)/2, rPd.y-arm-4, '#ff6b35');
+    lbl(fmtHalf(rPdL)+'mm',(lPd.x+brd.x)/2, lPd.y-arm-4, '#a78bfa');
+    lblL(fmtHalf(rSegR)+'mm', rPd.x+arm+3, (rPd.y+rBd.y)/2+fs*.35, '#ff8800');
+    lblL(fmtHalf(rSegL)+'mm', lPd.x+arm+3, (lPd.y+lBd.y)/2+fs*.35, '#ffdd00');
+  }
+
+  // Orientation badge
+  if(zoom===1){
+    c.fillStyle='rgba(0,229,255,.12)'; c.fillRect(0,0,dispW,fs*1.6);
+    c.fillStyle='#00e5ff'; c.font=`bold ${Math.round(fs*.7)}px Courier New`; c.textAlign='center';
+    c.fillText('◄ R (PATIENT)      L (PATIENT) ►',dispW/2,fs*1.1);
+  }
+
+  // Update zoom badge
+  $('zoom-badge').textContent=zoom+'×';
+  $('z-val').textContent=zoom+'×';
+}
+
+// ── Calibration constant (saved to localStorage) ──────────────────────────────
+// bridgeToMidMM: average distance from bridge midpoint to each pupil center in mm
+// Saved once from examiner's own known PD. Default 32mm (average adult).
+let bridgeToMidMM = parseFloat(localStorage.getItem('pd_bridge_mm')) || 32.0;
+
+function saveCalibration(mm){
+  bridgeToMidMM = mm;
+  localStorage.setItem('pd_bridge_mm', mm.toFixed(4));
+}
+
+// ── Recalc ─────────────────────────────────────────────────────────────────────
+function recalc(){
+  const{rP,lP,bridge,rB,lB}=pts;
+  if(!rP||!lP||!bridge||!rB||!lB) return;
+
+  // Bridge-to-pupil pixel distances (horizontal)
+  const bridgeToR = Math.abs(rP.x - bridge.x);
+  const bridgeToL = Math.abs(lP.x - bridge.x);
+  const avgBridgePx = (bridgeToR + bridgeToL) / 2;
+
+  // Self-scaling: derive mm/px from anatomical bridge-to-pupil reference
+  // bridgeToMidMM is calibrated on examiner (or default 32mm)
+  const mmPerPx = bridgeToMidMM / avgBridgePx;
+  ppm = 1 / mmPerPx; // pixels per mm (kept for seg calculation)
+
+  // Binocular PD from pixel distance × scale
+  const pupilPx = Math.abs(rP.x - lP.x);
+  binoPD = pupilPx * mmPerPx;
+
+  // Mono PDs: proportional split via bridge
+  let pdR = bridgeToR * mmPerPx;
+  let pdL = bridgeToL * mmPerPx;
+  rPdR = Math.max(20, Math.min(40, pdR));
+  rPdL = Math.max(20, Math.min(40, pdL));
+
+  // Seg heights — vertical distance from pupil to bottom marker
+  pts.rB.x = pts.rP.x; pts.lB.x = pts.lP.x;
+  rSegR = Math.max(3, Math.min(45, (rB.y - rP.y) * mmPerPx));
+  rSegL = Math.max(3, Math.min(45, (lB.y - lP.y) * mmPerPx));
+
+  // Symmetry correction on seg
+  {
+    const avg = (rSegR + rSegL) / 2;
+    rSegR = avg + (rSegR - avg) * 0.5;
+    rSegL = avg + (rSegL - avg) * 0.5;
+  }
+  updateOpt();
+}
+
+function updateOpt(){
+  const nm=$('pn').value||'—', nt=$('pnt').value||'—';
+  const dt=new Date().toLocaleDateString('en-GB');
+  $('opt-text').innerHTML=
+    '<b style="color:#4a8a4a">'+nm+'</b> · '+dt+'<br/>'+
+    'Mono PD — R: '+fmtHalf(rPdR)+' / L: '+fmtHalf(rPdL)+' mm<br/>'+
+    'Bino PD: '+fmtHalf(roundHalf(rPdR+rPdL))+' mm<br/>'+
+    'Seg height — R: '+fmtHalf(rSegR)+' / L: '+fmtHalf(rSegL)+' mm<br/>'+
+    '<span style="color:#2a4a2a">Notes: '+nt+'</span>';
+}
+
+// ── Move point with D-pad ──────────────────────────────────────────────────────
+function movePoint(dx,dy){
+  if(!pts[activePt]||!procImg) return;
+  const zoom=ZOOM_STEPS[zoomIdx];
+  const wrap=$('cv-wrap');
+  const dispW=wrap.clientWidth||320;
+  const imgPerDisp=(procImg.width/zoom)/dispW;
+  // Bridge uses half step — 1mm PD split resolution instead of 2mm
+  const scaleFactor=activePt==='bridge'?0.5:1;
+  const step=Math.max(0.5, stepSize*imgPerDisp*scaleFactor);
+  pts[activePt].x=Math.max(0,Math.min(procImg.width,  pts[activePt].x+dx*step));
+  pts[activePt].y=Math.max(0,Math.min(procImg.height, pts[activePt].y+dy*step));
+  recalc(); draw();
+}
+
+// ── Canvas tap → jump point ────────────────────────────────────────────────────
+function canvasTap(e){
+  e.preventDefault();
+  const cvs=$('cv-main'), rect=cvs.getBoundingClientRect();
+  const t=e.touches?e.changedTouches[0]:e;
+  const dx=t.clientX-rect.left, dy=t.clientY-rect.top;
+
+  // Convert display coords back to image coords
+  const zoom=ZOOM_STEPS[zoomIdx];
+  const IW=procImg.width, IH=procImg.height;
+  const vw=IW/zoom, vh=IH/zoom;
+  const ap=pts[activePt];
+  const cx=ap?ap.x:IW/2, cy=ap?ap.y:IH/2;
+  let vx=Math.max(0,Math.min(IW-vw, cx-vw/2));
+  let vy=Math.max(0,Math.min(IH-vh, cy-vh/2));
+
+  const dispW=rect.width, dispH=rect.height;
+  const ix=vx+(dx/dispW)*vw;
+  const iy=vy+(dy/dispH)*vh;
+
+  pts[activePt]={x:Math.max(0,Math.min(IW,ix)), y:Math.max(0,Math.min(IH,iy))};
+  recalc(); draw();
+}
+
+// ── Zoom ───────────────────────────────────────────────────────────────────────
+function changeZoom(dir){
+  zoomIdx=Math.max(0,Math.min(ZOOM_STEPS.length-1, zoomIdx+dir));
+  draw();
+}
+
+// ── Long-press D-pad ──────────────────────────────────────────────────────────
+let pressInterval=null;
+function startMove(dx,dy,btn){
+  btn.classList.add('pressed');
+  movePoint(dx,dy);
+  pressInterval=setInterval(()=>movePoint(dx,dy),80);
+}
+function stopMove(btn){
+  if(btn)btn.classList.remove('pressed');
+  clearInterval(pressInterval); pressInterval=null;
+}
+
+// ── Photo load ─────────────────────────────────────────────────────────────────
+function handlePhoto(file){
+  if(!file)return;
+  loadFile(file).then(c=>{
+    if(!c)return;
+    rawCanvas=c;
+    const slot=$('slot');
+    let im=slot.querySelector('img');
+    if(!im){im=document.createElement('img');slot.insertBefore(im,slot.firstChild);}
+    im.src=c.toDataURL('image/jpeg',.5);
+    slot.querySelector('.slot-lbl').style.display='none';
+    let tk=slot.querySelector('.tick');
+    if(!tk){tk=document.createElement('div');tk.className='tick';tk.textContent='✓';slot.appendChild(tk);}
+    slot.classList.add('done');
+    $('btn-goplace').disabled=false;
+  });
+}
+
+function goPlace(){
+  procImg=rawCanvas;
+  pts=defaultPts(procImg.width,procImg.height);
+  activePt='rP'; zoomIdx=0;
+  document.querySelectorAll('.pt-tab').forEach(b=>b.classList.toggle('active',b.dataset.pt==='rP'));
+  hide('s-photo'); show('s-place');
+  requestAnimationFrame(()=>{ recalc(); draw(); });
+}
+
+// ── Save full-res image ────────────────────────────────────────────────────────
+function saveImage(){
+  // Render at full zoom=1 onto an offscreen canvas
+  const off=document.createElement('canvas');
+  const W=procImg.width, H=procImg.height;
+  off.width=W; off.height=H;
+  const c=off.getContext('2d');
+  c.drawImage(procImg,0,0);
+
+  const{rP,lP,bridge,rB,lB}=pts;
+  const lw=Math.max(1.5,W*0.003);
+  const dot=Math.max(4,W*0.006);
+  const arm=Math.max(12,W*0.018);
+  const fs=Math.max(12,Math.round(W*0.032));
+
+  c.lineWidth=lw;
+  c.strokeStyle='#ff4444';
+  c.beginPath();c.moveTo(rP.x,rP.y);c.lineTo(bridge.x,rP.y);c.stroke();
+  c.strokeStyle='#aa66ff';
+  c.beginPath();c.moveTo(lP.x,lP.y);c.lineTo(bridge.x,lP.y);c.stroke();
+  c.strokeStyle='#ff8800';
+  c.beginPath();c.moveTo(rP.x,rP.y);c.lineTo(rP.x,rB.y);c.stroke();
+  c.strokeStyle='#ffdd00';
+  c.beginPath();c.moveTo(lP.x,lP.y);c.lineTo(lP.x,lB.y);c.stroke();
+
+  [[rP,'#ff6b35'],[lP,'#a78bfa'],[bridge,'#00e5ff'],[rB,'#ff8800'],[lB,'#ffdd00']].forEach(([p,col])=>{
+    c.fillStyle=col;c.beginPath();c.arc(p.x,p.y,dot,0,Math.PI*2);c.fill();
+    c.strokeStyle='rgba(0,0,0,.7)';c.lineWidth=0.8;c.beginPath();c.arc(p.x,p.y,dot,0,Math.PI*2);c.stroke();
+    c.strokeStyle=col;c.lineWidth=lw;
+    const g=dot+2;
+    c.beginPath();
+    c.moveTo(p.x-arm,p.y);c.lineTo(p.x-g,p.y);
+    c.moveTo(p.x+g,p.y);c.lineTo(p.x+arm,p.y);
+    c.moveTo(p.x,p.y-arm);c.lineTo(p.x,p.y-g);
+    c.moveTo(p.x,p.y+g);c.lineTo(p.x,p.y+arm);
+    c.stroke();
+  });
+
+  c.font=`bold ${fs}px Courier New`;c.textAlign='center';
+  function lbl(txt,x,y,col){const tw=c.measureText(txt).width;c.fillStyle='rgba(0,0,0,.88)';c.fillRect(x-tw/2-2,y-fs+1,tw+4,fs+4);c.fillStyle=col;c.fillText(txt,x,y);}
+  function lblL(txt,x,y,col){const tw=c.measureText(txt).width;c.fillStyle='rgba(0,0,0,.88)';c.fillRect(x-1,y-fs+1,tw+4,fs+4);c.fillStyle=col;c.textAlign='left';c.fillText(txt,x,y);}
+  lbl(rPdR.toFixed(1)+'mm',(rP.x+bridge.x)/2,rP.y-arm-4,'#ff6b35');
+  lbl(rPdL.toFixed(1)+'mm',(lP.x+bridge.x)/2,lP.y-arm-4,'#a78bfa');
+  lblL(rSegR.toFixed(1)+'mm',rP.x+arm+3,(rP.y+rB.y)/2+fs*.35,'#ff8800');
+  lblL(rSegL.toFixed(1)+'mm',lP.x+arm+3,(lP.y+lB.y)/2+fs*.35,'#ffdd00');
+
+  const bh=Math.round(fs*1.6);
+  c.fillStyle='rgba(0,229,255,.12)';c.fillRect(0,0,W,bh);
+  c.fillStyle='#00e5ff';c.font=`bold ${Math.round(fs*.7)}px Courier New`;c.textAlign='center';
+  c.fillText('◄ R      EXAMINER VIEW      L ►',W/2,fs*1.1);
+
+  const a=document.createElement('a');a.download='pd-measurement.png';a.href=off.toDataURL();a.click();
+}
+
+function rst(){
+  rawCanvas=null;procImg=null;
+  pts={rP:null,lP:null,bridge:null,rB:null,lB:null};
+  rPdR=0;rPdL=0;rSegR=0;rSegL=0; zoomIdx=0;
+  $('inp').value='';
+  const slot=$('slot');
+  const im=slot.querySelector('img');if(im)im.remove();
+  const tk=slot.querySelector('.tick');if(tk)tk.remove();
+  slot.querySelector('.slot-lbl').style.display='';
+  slot.classList.remove('done');
+  $('btn-goplace').disabled=true;
+  ['s-place','s-photo','s-calib'].forEach(hide);
+  showLabels=false;
+  hide('btn-save');
+  hide('results-grid');
+  if($('results-card'))$('results-card').style.display='none';
+  if($('results-optbox'))$('results-optbox').style.display='none';
+  show('s-photo');
+  startCamera();
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  // ── Camera viewfinder ────────────────────────────────────────────────────────
+  let stream=null;
+  let facingMode='user'; // 'user'=front, 'environment'=rear
+  function startCamera(){
+    const vf=$('vf');
+    if(!vf) return;
+    if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+    if(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){
+      navigator.mediaDevices.getUserMedia({video:{facingMode,width:{ideal:9999,min:1280},height:{ideal:9999,min:720},advanced:[{width:{min:3000}},{width:{min:1920}}]}})
+        .then(s=>{
+          stream=s; vf.srcObject=s;
+          vf.style.transform=facingMode==='user'?'scaleX(-1)':'scaleX(1)';
+          $('vf-status').textContent='';
+          startDistanceCheck();
+          const sw=$('btn-camswitch');
+          if(sw) sw.textContent=facingMode==='user'?'🔄 REAR':'🔄 FRONT';
+          // Setup native zoom if supported
+          setupZoom(s);
+        })
+        .catch(()=>{
+          $('vf-status').textContent='Camera unavailable — use file picker below';
+          show('slot');
+        });
+    } else {
+      $('vf-status').textContent='Camera not supported — use file picker below';
+      show('slot');
+    }
+  }
+
+  // Native camera zoom (optical/digital — distortion-free, capture matches preview)
+  let camZoom=1, zoomMin=1, zoomMax=1, zoomStep=0.1, zoomTrack=null;
+  function setupZoom(s){
+    const track=s.getVideoTracks()[0];
+    zoomTrack=track;
+    const caps=track.getCapabilities?track.getCapabilities():{};
+    const ctrl=$('zoom-ctrl');
+    if(caps.zoom){
+      zoomMin=caps.zoom.min||1;
+      zoomMax=caps.zoom.max||1;
+      zoomStep=caps.zoom.step||0.1;
+      camZoom=Math.max(zoomMin,Math.min(zoomMax,track.getSettings().zoom||zoomMin));
+      if(ctrl) ctrl.style.display='flex';
+      updateZoomLabel();
+    } else {
+      // No native zoom available — hide control
+      if(ctrl) ctrl.style.display='none';
+    }
+  }
+  function updateZoomLabel(){
+    const v=$('cam-zoom-val'); if(v) v.textContent=camZoom.toFixed(1)+'×';
+  }
+  function applyZoom(){
+    if(!zoomTrack) return;
+    camZoom=Math.max(zoomMin,Math.min(zoomMax,camZoom));
+    zoomTrack.applyConstraints({advanced:[{zoom:camZoom}]}).catch(()=>{});
+    updateZoomLabel();
+  }
+
+  function stopCamera(){
+    stopDistanceCheck();
+    if(stream){
+      // Turn off torch before stopping
+      torchOn=false;
+      const track=stream.getVideoTracks&&stream.getVideoTracks()[0];
+      if(track&&track.getCapabilities&&track.getCapabilities().torch){
+        track.applyConstraints({advanced:[{torch:false}]}).catch(()=>{});
+      }
+      stream.getTracks().forEach(t=>t.stop());
+      stream=null;
+    }
+  }
+
+  // Torch toggle
+  let torchOn=false;
+  document.addEventListener('click', e=>{
+    if(e.target.id==='btn-torch'){
+      if(!stream) return;
+      const track=stream.getVideoTracks()[0];
+      if(!track||!track.getCapabilities||!track.getCapabilities().torch) return;
+      torchOn=!torchOn;
+      track.applyConstraints({advanced:[{torch:torchOn}]}).catch(()=>{});
+      $('btn-torch').textContent=torchOn?'🔦 ON':'🔦 OFF';
+      $('btn-torch').style.borderColor=torchOn?'rgba(255,220,0,0.9)':'rgba(255,220,0,0.5)';
+      $('btn-torch').style.color=torchOn?'#fff':'#ffdd00';
+    }
+  });
+
+  // Distance indicator — FaceDetector drives a status badge
+  let distInterval=null;
+  function setBadge(state){
+    const b=$('dist-badge'); if(!b) return;
+    if(state==='good'){
+      b.style.borderColor='rgba(0,220,80,0.9)';
+      b.style.color='#00e577';
+      b.style.background='rgba(0,40,20,0.7)';
+      b.textContent='✓ GOOD DISTANCE';
+    } else if(state==='near'){
+      b.style.borderColor='rgba(255,80,80,0.8)';
+      b.style.color='#ff6666';
+      b.style.background='rgba(0,0,0,0.6)';
+      b.textContent='⊖ TOO CLOSE — MOVE BACK';
+    } else if(state==='far'){
+      b.style.borderColor='rgba(255,170,0,0.8)';
+      b.style.color='#ffaa00';
+      b.style.background='rgba(0,0,0,0.6)';
+      b.textContent='⊕ TOO FAR — COME CLOSER';
+    } else {
+      b.style.borderColor='rgba(255,170,0,0.6)';
+      b.style.color='#ffaa00';
+      b.style.background='rgba(0,0,0,0.6)';
+      b.textContent='◷ DETECTING…';
+    }
+  }
+  function startDistanceCheck(){
+    if(distInterval) clearInterval(distInterval);
+    setBadge('detecting');
+    if(typeof FaceDetector === 'undefined'){
+      const b=$('dist-badge'); if(b) b.style.display='none';
+      return;
+    }
+    const fd=new FaceDetector({fastMode:true});
+    const vf=$('vf');
+    const tmpCanvas=document.createElement('canvas');
+    distInterval=setInterval(async ()=>{
+      if(!vf.videoWidth) return;
+      tmpCanvas.width=vf.videoWidth; tmpCanvas.height=vf.videoHeight;
+      tmpCanvas.getContext('2d').drawImage(vf,0,0);
+      try{
+        const faces=await fd.detect(tmpCanvas);
+        if(faces.length>0){
+          const fw=faces[0].boundingBox.width;
+          const ratio=fw/vf.videoWidth;
+          // At ~45cm with this camera, face spans ~30-40% of full sensor width.
+          // Tune: good band 0.30-0.40, below=far, above=near
+          if(ratio>=0.30 && ratio<=0.40) setBadge('good');
+          else if(ratio<0.30) setBadge('far');
+          else setBadge('near');
+        } else {
+          setBadge('detecting');
+        }
+      }catch(e){}
+    }, 350);
+  }
+  function stopDistanceCheck(){
+    if(distInterval){ clearInterval(distInterval); distInterval=null; }
+  }
+
+  // Zoom buttons
+  document.addEventListener('click', e=>{
+    if(e.target.id==='cam-zoom-in'){ camZoom+=Math.max(zoomStep,(zoomMax-zoomMin)/20); applyZoom(); }
+    if(e.target.id==='cam-zoom-out'){ camZoom-=Math.max(zoomStep,(zoomMax-zoomMin)/20); applyZoom(); }
+  });
+
+  // Camera switch
+  document.addEventListener('click', e=>{
+    if(e.target.id==='btn-camswitch'){
+      torchOn=false;
+      facingMode=facingMode==='user'?'environment':'user';
+      startCamera();
+    }
+  });
+
+  // Capture snapshot from viewfinder — matches preview exactly
+  function doCapture(){
+    const vf=$('vf');
+    const hasVideo=vf.srcObject&&vf.videoWidth>0;
+    const vw=hasVideo?vf.videoWidth:640;
+    const vh=hasVideo?vf.videoHeight:480;
+
+    // object-fit:cover crops the video to the visible box's real aspect ratio.
+    const boxRect = vf.getBoundingClientRect();
+    const boxAR = boxRect.width / boxRect.height;
+    const videoAR = vw/vh;
+    let cropW, cropH;
+    if(videoAR > boxAR){ cropH = vh; cropW = Math.round(vh*boxAR); }
+    else { cropW = vw; cropH = Math.round(vw/boxAR); }
+    const cropX = Math.round((vw - cropW)/2);
+    const cropY = Math.round((vh - cropH)/2);
+
+    const c=document.createElement('canvas');
+    c.width=cropW; c.height=cropH;
+    const ctx=c.getContext('2d');
+    if(hasVideo){
+      ctx.drawImage(vf, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+    }
+    rawCanvas=c;
+    captureFacing=facingMode;
+    stopCamera();
+    const prev=document.createElement('img');
+    prev.src=c.toDataURL('image/jpeg',.8);
+    const mir=facingMode==='user'?'transform:scaleX(-1);':'';
+    prev.style.cssText='width:100%;border-radius:8px;margin-bottom:8px;display:block;max-width:460px;'+mir;
+    const vfWrap=$('vf').parentElement;
+    vfWrap.style.display='none';
+    vfWrap.parentElement.insertBefore(prev,vfWrap);
+    $('btn-goplace').disabled=false;
+    $('vf-status').textContent='✅ Photo captured — press NEXT to place markers';
+    $('vf-status').style.color='#00e577';
+  }
+  $('btn-capture').addEventListener('click',doCapture);
+  $('btn-capture').addEventListener('touchend',e=>{e.preventDefault();doCapture();},{passive:false});
+
+  // Fallback file input
+  $('inp').addEventListener('change',function(){handlePhoto(this.files[0]);});
+  try{ $('inp2').addEventListener('change',function(){handlePhoto(this.files[0]);}); }catch(e){}
+
+  // App starts directly on photo screen
+  document.body.style.background = '#0c0c12';
+  startCamera();
+
+  $('btn-back').addEventListener('click',()=>{
+    stopCamera();
+    hide('s-place');
+    show('s-photo');
+    startCamera();
+  });
+
+  // Tap canvas to toggle results overlay
+  function showResults(){
+    recalc();
+    const bino=roundHalf(rPdR+rPdL);
+    $('r-pd').innerHTML=fmtHalf(bino)+'<span>mm</span>';
+    $('r-pdr').textContent=fmtHalf(rPdR);
+    $('r-pdl').textContent=fmtHalf(rPdL);
+    $('r-segr').innerHTML=fmtHalf(rSegR)+'<span>mm</span>';
+    $('r-segl').innerHTML=fmtHalf(rSegL)+'<span>mm</span>';
+    updateOpt();
+    show('results-grid');
+    $('results-card').style.display='';
+    $('results-optbox').style.display='';
+    show('btn-save');
+    showCalibBar();
+  }
+  $('btn-flip').addEventListener('click',()=>{
+    if(!procImg) return;
+    procImg=flipH(procImg);
+    pts=defaultPts(procImg.width,procImg.height);
+    recalc(); draw();
+  });
+
+  $('btn-center').addEventListener('click',()=>{
+    // Switch to bridge point — zoom centres on it exactly like pressing BRIDGE tab
+    activePt='bridge';
+    document.querySelectorAll('.pt-tab').forEach(x=>x.classList.remove('active'));
+    document.querySelector('[data-pt="bridge"]').classList.add('active');
+    zoomIdx=Math.min(2, ZOOM_STEPS.length-1);
+    draw();
+  });
+
+  $('btn-results').addEventListener('click',()=>{
+    showLabels=true; draw();
+    recalc();
+    const bino=roundHalf(rPdR+rPdL);
+    $('r-pd').innerHTML=fmtHalf(bino)+'<span>mm</span>';
+    $('r-pdr').textContent=fmtHalf(rPdR);
+    $('r-pdl').textContent=fmtHalf(rPdL);
+    $('r-segr').innerHTML=fmtHalf(rSegR)+'<span>mm</span>';
+    $('r-segl').innerHTML=fmtHalf(rSegL)+'<span>mm</span>';
+    updateOpt();
+    show('results-grid');
+    $('results-card').style.display='';
+    $('results-optbox').style.display='';
+    show('btn-save');
+    showCalibBar();
+  });
+
+  // ── CALIBRATION ───────────────────────────────────────────────────────────────
+
+  // EXIF read for calibration
+  async function readCalibEXIF(canvas){
+    // We don't have the original file here — use the rawCanvas dimensions
+    // to estimate. But we stored focalMM from capture if available.
+    // We'll try reading from the rawCanvas blob.
+    $('cal-exif-badge').textContent = CAL.focalMM
+      ? 'EXIF focal: ' + CAL.focalMM.toFixed(2) + ' mm'
+      : 'EXIF not available — using default 5.31 mm (Redmi Note 13)';
+    if (!CAL.focalMM) CAL.focalMM = 5.31;
+  }
+
+  function goCalib(){
+    hide('s-place');
+    show('s-calib');
+    // Reset cal state
+    CAL.pts = { rP: null, lP: null };
+    CAL.activePt = 'rP';
+    CAL.zoomIdx = 0;
+    CAL.trimVal = 0;
+    $('cal-trim').value = 0;
+    $('cal-trim-v').textContent = '0.0';
+    $('cal-mv-r').textContent = 'tap →';
+    $('cal-mv-l').textContent = 'tap →';
+    $('cal-mb-r').style.borderColor = '';
+    $('cal-mb-l').style.borderColor = '';
+    $('cal-result-card').style.display = 'none';
+    $('cal-trim-card').style.display = 'none';
+    $('btn-cal-confirm').disabled = true;
+    setCalPt('rP');
+    readCalibEXIF(procImg);
+    calDraw();
+  }
+
+  function setCalPt(pt){
+    CAL.activePt = pt;
+    document.querySelectorAll('[data-calpt]').forEach(b => b.classList.toggle('active', b.dataset.calpt === pt));
+    calDraw();
+  }
+
+  // Cal canvas draw
+  function calDraw(){
+    const cvs = $('cal-cv');
+    const wrap = $('cal-cv-wrap');
+    const IW = procImg.width, IH = procImg.height;
+    const zoom = ZOOM_STEPS[CAL.zoomIdx];
+    const vw = IW/zoom, vh = IH/zoom;
+
+    const ap = CAL.pts[CAL.activePt];
+    const cx = ap ? ap.x : IW/2, cy = ap ? ap.y : IH/2;
+    let vx = Math.max(0, Math.min(IW-vw, cx-vw/2));
+    let vy = Math.max(0, Math.min(IH-vh, cy-vh/2));
+
+    const dispW = wrap.clientWidth || 320;
+    const dispH = Math.round(dispW*(vh/vw));
+    const dpr = window.devicePixelRatio || 1;
+    cvs.style.width = dispW+'px'; cvs.style.height = dispH+'px';
+    cvs.width = Math.round(dispW*dpr); cvs.height = Math.round(dispH*dpr);
+
+    const c = cvs.getContext('2d');
+    c.scale(dpr, dpr);
+    c.drawImage(procImg, vx,vy,vw,vh, 0,0,dispW,dispH);
+
+    const sx = dispW/vw, sy = dispH/vh;
+    const id2d = (x,y) => ({x:(x-vx)*sx, y:(y-vy)*sy});
+
+    // Draw cal markers
+    [['rP','#ff6b35'],['lP','#a78bfa']].forEach(([key,col])=>{
+      const p = CAL.pts[key]; if(!p) return;
+      const d = id2d(p.x, p.y);
+      const isActive = key === CAL.activePt;
+      const arm = 14, dot = 4;
+      if(isActive){
+        c.strokeStyle=col; c.lineWidth=1.5;
+        c.beginPath(); c.arc(d.x,d.y,dot+arm*0.55,0,Math.PI*2); c.stroke();
+      }
+      c.fillStyle=col;
+      c.beginPath(); c.arc(d.x,d.y,dot,0,Math.PI*2); c.fill();
+      c.strokeStyle=col; c.lineWidth=1;
+      const gap=dot+2;
+      c.beginPath();
+      c.moveTo(d.x-arm,d.y); c.lineTo(d.x-gap,d.y);
+      c.moveTo(d.x+gap,d.y); c.lineTo(d.x+arm,d.y);
+      c.moveTo(d.x,d.y-arm); c.lineTo(d.x,d.y-gap);
+      c.moveTo(d.x,d.y+gap); c.lineTo(d.x,d.y+arm);
+      c.stroke();
+    });
+
+    $('cal-zoom-badge').textContent = zoom+'×';
+    $('cal-z-val').textContent = zoom+'×';
+  }
+
+  // Cal canvas tap
+  $('cal-cv').addEventListener('touchend', calCanvasTap, {passive:false});
+  $('cal-cv').addEventListener('click',    calCanvasTap);
+
+  function calCanvasTap(e){
+    e.preventDefault();
+    const cvs = $('cal-cv'), rect = cvs.getBoundingClientRect();
+    const t = e.touches ? e.changedTouches[0] : e;
+    const dx = t.clientX-rect.left, dy = t.clientY-rect.top;
+
+    const zoom = ZOOM_STEPS[CAL.zoomIdx];
+    const IW = procImg.width, IH = procImg.height;
+    const vw = IW/zoom, vh = IH/zoom;
+    const ap = CAL.pts[CAL.activePt];
+    const cx = ap?ap.x:IW/2, cy = ap?ap.y:IH/2;
+    const vx = Math.max(0,Math.min(IW-vw, cx-vw/2));
+    const vy = Math.max(0,Math.min(IH-vh, cy-vh/2));
+    const dispW = rect.width, dispH = rect.height;
+    const ix = vx+(dx/dispW)*vw;
+    const iy = vy+(dy/dispH)*vh;
+
+    CAL.pts[CAL.activePt] = {x:Math.max(0,Math.min(IW,ix)), y:Math.max(0,Math.min(IH,iy))};
+    calUpdateStatus();
+    calDraw();
+  }
+
+  function calMovePoint(dx,dy){
+    const pt = CAL.pts[CAL.activePt]; if(!pt||!procImg) return;
+    const zoom = ZOOM_STEPS[CAL.zoomIdx];
+    const wrap = $('cal-cv-wrap');
+    const dispW = wrap.clientWidth||320;
+    const imgPerDisp = (procImg.width/zoom)/dispW;
+    const step = Math.max(0.5, CAL.stepSize*imgPerDisp);
+    pt.x = Math.max(0,Math.min(procImg.width,  pt.x+dx*step));
+    pt.y = Math.max(0,Math.min(procImg.height, pt.y+dy*step));
+    calUpdateStatus();
+    calDraw();
+  }
+
+  function calUpdateStatus(){
+    const R = CAL.pts.rP, L = CAL.pts.lP;
+    if(R){ $('cal-mv-r').textContent='x='+R.x.toFixed(0); $('cal-mb-r').style.borderColor='#00e57766'; }
+    if(L){ $('cal-mv-l').textContent='x='+L.x.toFixed(0); $('cal-mb-l').style.borderColor='#00e57766'; }
+    if(R&&L){ calComputePD(); }
+  }
+
+  function calComputePD(){
+    const R = CAL.pts.rP, L = CAL.pts.lP;
+    if(!R||!L) return;
+    const pdPx = Math.abs(L.x - R.x);
+    const physPx = CAL.sensorW / procImg.width;
+    const mmPerPx = CAL.distMM * physPx / CAL.focalMM;
+    const pdMM = pdPx * mmPerPx + CAL.trimVal;
+
+    $('cal-pd-display').textContent = pdMM.toFixed(1) + ' mm';
+    $('cal-pd-detail').textContent =
+      'Δ='+pdPx.toFixed(0)+'px · '+mmPerPx.toFixed(4)+'mm/px · focal='+CAL.focalMM.toFixed(2)+'mm · dist='+CAL.distMM/10+'cm';
+    $('cal-result-card').style.display = '';
+    $('cal-trim-card').style.display = '';
+    $('btn-cal-confirm').disabled = false;
+
+    return pdMM;
+  }
+
+  // Cal distance slider
+  $('cal-dist-sl').addEventListener('input', function(){
+    CAL.distMM = +this.value * 10;
+    $('cal-dist-v').textContent = this.value + ' cm';
+    if(CAL.pts.rP && CAL.pts.lP) calComputePD();
+  });
+
+  // Cal trim
+  $('cal-trim').addEventListener('input', function(){
+    CAL.trimVal = +this.value;
+    $('cal-trim-v').textContent = CAL.trimVal.toFixed(1);
+    if(CAL.pts.rP && CAL.pts.lP) calComputePD();
+  });
+
+  // Cal zoom
+  $('cal-z-in').addEventListener('click', ()=>{
+    CAL.zoomIdx = Math.min(ZOOM_STEPS.length-1, CAL.zoomIdx+1); calDraw();
+  });
+  $('cal-z-out').addEventListener('click', ()=>{
+    CAL.zoomIdx = Math.max(0, CAL.zoomIdx-1); calDraw();
+  });
+
+  // Cal step buttons
+  document.querySelectorAll('[data-calstep]').forEach(b=>{
+    b.addEventListener('click',()=>{
+      CAL.stepSize = parseInt(b.dataset.calstep);
+      document.querySelectorAll('[data-calstep]').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+    });
+  });
+
+  // Cal D-pad
+  let calPressInterval = null;
+  function calStartMove(dx,dy,btn){
+    btn.classList.add('pressed');
+    calMovePoint(dx,dy);
+    calPressInterval = setInterval(()=>calMovePoint(dx,dy),80);
+  }
+  function calStopMove(btn){
+    if(btn) btn.classList.remove('pressed');
+    clearInterval(calPressInterval); calPressInterval=null;
+  }
+  let activeCalBtn = null;
+  [['cal-d-up',0,-1],['cal-d-down',0,1],['cal-d-left',-1,0],['cal-d-right',1,0]].forEach(([id,dx,dy])=>{
+    const btn=$(id);
+    btn.addEventListener('touchstart',e=>{e.preventDefault();activeCalBtn=btn;calStartMove(dx,dy,btn);},{passive:false});
+    btn.addEventListener('touchend',  e=>{e.preventDefault();calStopMove(activeCalBtn);activeCalBtn=null;},{passive:false});
+    btn.addEventListener('mousedown', ()=>{activeCalBtn=btn;calStartMove(dx,dy,btn);});
+    btn.addEventListener('mouseup',   ()=>{calStopMove(activeCalBtn);activeCalBtn=null;});
+  });
+  document.addEventListener('touchend', ()=>{if(activeCalBtn){calStopMove(activeCalBtn);activeCalBtn=null;}});
+
+  // Cal confirm → set binoPD and show results
+  $('btn-cal-confirm').addEventListener('click',()=>{
+    const pd = calComputePD();
+    if(!pd) return;
+    binoPD = pd;
+    recalc();
+    // Show results
+    showLabels = true;
+    draw();
+    const bino = roundHalf(rPdR+rPdL);
+    $('r-pd').innerHTML = fmtHalf(bino)+'<span>mm</span>';
+    $('r-pdr').textContent = fmtHalf(rPdR);
+    $('r-pdl').textContent = fmtHalf(rPdL);
+    $('r-segr').innerHTML = fmtHalf(rSegR)+'<span>mm</span>';
+    $('r-segl').innerHTML = fmtHalf(rSegL)+'<span>mm</span>';
+    updateOpt();
+    show('results-grid');
+    $('results-card').style.display='';
+    $('results-optbox').style.display='';
+    show('btn-save');
+    showCalibBar();
+    hide('s-calib');
+    show('s-place');
+  });
+
+  $('btn-cal-back').addEventListener('click',()=>{
+    hide('s-calib'); show('s-place');
+  });
+
+
+  $('btn-again').addEventListener('click',()=>{rst();});
+  $('btn-save').addEventListener('click',saveImage);
+  document.querySelector('[id="btn-goplace"]') && $('btn-goplace').addEventListener('click',goPlace);
+  $('pn').addEventListener('input',()=>{recalc();});
+  $('pnt').addEventListener('input',()=>{recalc();});
+
+  // Point tabs
+  document.querySelectorAll('.pt-tab').forEach(b=>{
+    b.addEventListener('click',()=>{
+      activePt=b.dataset.pt;
+      document.querySelectorAll('.pt-tab').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      draw();
+    });
+  });
+
+  // Step size
+  document.querySelectorAll('.step-btn').forEach(b=>{
+    b.addEventListener('click',()=>{
+      stepSize=parseInt(b.dataset.step);
+      document.querySelectorAll('.step-btn').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+    });
+  });
+
+  // Zoom buttons
+  $('z-in').addEventListener('click',()=>changeZoom(+1));
+  $('z-out').addEventListener('click',()=>changeZoom(-1));
+
+
+  // D-pad — with global safety stop to prevent stuck repeat
+  let activeDpadBtn=null;
+  function startMove2(dx,dy,btn){
+    if(pressInterval) clearInterval(pressInterval);
+    activeDpadBtn=btn;
+    startMove(dx,dy,btn);
+  }
+  function stopMove2(){
+    stopMove(activeDpadBtn);
+    activeDpadBtn=null;
+  }
+  [['d-up',0,-1],['d-down',0,1],['d-left',-1,0],['d-right',1,0]].forEach(([id,dx,dy])=>{
+    const btn=$(id);
+    btn.addEventListener('touchstart',e=>{e.preventDefault();startMove2(dx,dy,btn);},{passive:false});
+    btn.addEventListener('touchend',  e=>{e.preventDefault();stopMove2();},{passive:false});
+    btn.addEventListener('touchcancel',e=>{e.preventDefault();stopMove2();},{passive:false});
+    btn.addEventListener('mousedown', ()=>startMove2(dx,dy,btn));
+    btn.addEventListener('mouseup',   ()=>stopMove2());
+    btn.addEventListener('mouseleave',()=>stopMove2());
+  });
+  // Global safety: if touch lifts anywhere on screen, stop D-pad
+  document.addEventListener('touchend',  ()=>stopMove2());
+  document.addEventListener('touchcancel',()=>stopMove2());
+
+  // ── Calibration bar ──────────────────────────────────────────────────────────
+  function updateCalibLabel(){
+    const saved = localStorage.getItem('pd_bridge_mm');
+    const sl = $('cal-bridge-sl');
+    const v  = $('cal-bridge-v');
+    if(saved){
+      bridgeToMidMM = parseFloat(saved);
+      sl.value = bridgeToMidMM.toFixed(1);
+      v.textContent = bridgeToMidMM.toFixed(1);
+      $('cal-status-lbl').textContent = 'Calibrated · ' + bridgeToMidMM.toFixed(2) + ' mm';
+      $('cal-status-lbl').style.color = '#00e577';
+    } else {
+      sl.value = 32;
+      v.textContent = '32.0';
+      $('cal-status-lbl').textContent = 'Default 32mm · not calibrated';
+      $('cal-status-lbl').style.color = '#444';
+    }
+  }
+  updateCalibLabel();
+
+  // Show calib bar when results shown
+  function showCalibBar(){
+    $('calib-bar').style.display = '';
+    updateCalibLabel();
+  }
+
+  // Slider adjusts bridgeToMidMM live
+  $('cal-bridge-sl').addEventListener('input', function(){
+    bridgeToMidMM = parseFloat(this.value);
+    $('cal-bridge-v').textContent = bridgeToMidMM.toFixed(1);
+    recalc();
+    // Update displayed results live
+    const bino = roundHalf(rPdR + rPdL);
+    $('r-pd').innerHTML = fmtHalf(bino)+'<span>mm</span>';
+    $('r-pdr').textContent = fmtHalf(rPdR);
+    $('r-pdl').textContent = fmtHalf(rPdL);
+    $('r-segr').innerHTML = fmtHalf(rSegR)+'<span>mm</span>';
+    $('r-segl').innerHTML = fmtHalf(rSegL)+'<span>mm</span>';
+    updateOpt();
+    draw();
+  });
+
+  // "SET MY PD" button — show known PD input
+  $('btn-cal-self').addEventListener('click',()=>{
+    const w = $('cal-known-wrap');
+    w.style.display = w.style.display === 'none' ? '' : 'none';
+  });
+
+  // SAVE calibration — compute bridgeToMidMM from current markers + known PD
+  $('btn-cal-confirm2').addEventListener('click',()=>{
+    const knownPD = parseFloat($('cal-known-pd').value);
+    if(!knownPD || !pts.rP || !pts.lP || !pts.bridge) {
+      alert('Place all markers first, then enter your known PD.');
+      return;
+    }
+    const bridgeToR = Math.abs(pts.rP.x - pts.bridge.x);
+    const bridgeToL = Math.abs(pts.lP.x - pts.bridge.x);
+    const avgBridgePx = (bridgeToR + bridgeToL) / 2;
+    const pupilPx = Math.abs(pts.rP.x - pts.lP.x);
+    // mm/px from known PD
+    const mmPerPx = knownPD / pupilPx;
+    // bridge-to-mid in mm
+    const newBridgeMM = avgBridgePx * mmPerPx;
+    saveCalibration(newBridgeMM);
+    $('cal-known-wrap').style.display = 'none';
+    updateCalibLabel();
+    recalc();
+    const bino = roundHalf(rPdR + rPdL);
+    $('r-pd').innerHTML = fmtHalf(bino)+'<span>mm</span>';
+    $('r-pdr').textContent = fmtHalf(rPdR);
+    $('r-pdl').textContent = fmtHalf(rPdL);
+    $('r-segr').innerHTML = fmtHalf(rSegR)+'<span>mm</span>';
+    $('r-segl').innerHTML = fmtHalf(rSegL)+'<span>mm</span>';
+    updateOpt(); draw();
+    $('cal-status-lbl').textContent = '✓ Saved · ' + newBridgeMM.toFixed(2) + 'mm · PD now ' + fmtHalf(bino) + 'mm';
+  });
+
+  // Canvas tap
+  const cvs=$('cv-main');
+  cvs.addEventListener('touchend', canvasTap,{passive:false});
+  cvs.addEventListener('click',    canvasTap);
+});
+</script>
+</body>
+</html>
