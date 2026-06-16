@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>PD Measure</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --bg:#080810; --surface:#10101a; --border:#1e1e2e;
+  --accent:#00e5ff; --good:#00e676; --warn:#ffd740;
+  --text:#e0e0f0; --muted:#5a5a7a; --mono:'Courier New',monospace;
+}
+body {
+  background:var(--bg); color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  min-height:100vh; display:flex; flex-direction:column; align-items:center;
+  user-select:none; -webkit-user-select:none;
+}
+header {
+  width:100%; max-width:480px; padding:12px 14px;
+  display:flex; align-items:baseline; gap:10px;
+  border-bottom:1px solid var(--border);
+}
+header h1 { font-size:13px; font-weight:700; letter-spacing:0.2em; text-transform:uppercase; color:var(--accent); }
+header span { font-size:11px; color:var(--muted); font-family:var(--mono); }
+
+main { width:100%; max-width:480px; padding:12px 14px 48px; display:flex; flex-direction:column; gap:12px; }
+
+/* step bar */
+.sbar { display:flex; gap:6px; }
+.ss { flex:1; height:3px; border-radius:2px; background:var(--border); transition:background 0.3s; }
+.ss.on { background:var(--accent); }
+.ss.done { background:var(--good); }
+.slbl { font-size:11px; color:var(--muted); margin-top:5px; }
+.slbl b { color:var(--accent); }
+
+/* cards */
+.card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 14px; font-size:13px; line-height:1.65; }
+.card strong { color:var(--accent); }
+.card.g { border-color:var(--good); }
+.card.w { border-color:var(--warn); }
+.tag { display:inline-block; font-family:var(--mono); font-size:10px; padding:2px 7px; border-radius:3px; letter-spacing:0.1em; font-weight:700; margin-right:5px; }
+.ti { background:var(--accent); color:#000; }
+.tg { background:var(--good); color:#000; }
+.tw { background:var(--warn); color:#000; }
+
+/* image canvas */
+.img-wrap { position:relative; width:100%; border-radius:10px; overflow:hidden; background:#000; border:1px solid var(--border); display:none; touch-action:none; }
+.img-wrap.on { display:block; }
+#photo-canvas { display:block; width:100%; cursor:crosshair; touch-action:none; }
+
+/* zoom inset */
+#zoom-inset {
+  border:2px solid var(--accent); border-radius:8px;
+  box-shadow:0 0 16px rgba(0,229,255,0.4);
+  pointer-events:none; display:none; overflow:hidden; background:#000;
+  width:100%;
+}
+#zoom-inset.on { display:block; }
+#zoom-canvas { display:block; width:100%; height:auto; }
+
+/* range row */
+.rrow { display:flex; align-items:center; gap:10px; }
+.rrow label { font-size:12px; color:var(--muted); min-width:88px; }
+.rrow input[type=range] { flex:1; accent-color:var(--accent); }
+.rrow .rv { font-family:var(--mono); font-size:13px; color:var(--accent); min-width:50px; text-align:right; }
+
+/* D-pad */
+#dpad-wrap {
+  display:none; flex-direction:column; align-items:center; gap:6px;
+  background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  padding:14px;
+}
+#dpad-wrap.on { display:flex; }
+.dpad-row { display:flex; gap:6px; justify-content:center; }
+.dp {
+  width:52px; height:52px; border-radius:8px;
+  background:var(--bg); border:1px solid var(--border);
+  color:var(--accent); font-size:20px; display:flex; align-items:center; justify-content:center;
+  cursor:pointer; -webkit-tap-highlight-color:transparent;
+  transition:background 0.1s;
+}
+.dp:active, .dp.pressed { background:rgba(0,229,255,0.15); border-color:var(--accent); }
+.dp.center { background:var(--surface); font-size:11px; font-family:var(--mono); color:var(--muted); width:52px; height:52px; flex-direction:column; gap:1px; }
+
+.step-btns { display:flex; gap:6px; justify-content:center; }
+.stepbtn {
+  padding:6px 16px; border-radius:6px; font-size:12px; font-family:var(--mono);
+  font-weight:600; border:1px solid var(--border); background:var(--bg);
+  color:var(--muted); cursor:pointer; -webkit-tap-highlight-color:transparent;
+}
+.stepbtn.active { border-color:var(--accent); color:var(--accent); background:rgba(0,229,255,0.08); }
+
+.dpad-info { font-family:var(--mono); font-size:11px; color:var(--muted); text-align:center; }
+.dpad-info span { color:var(--accent); }
+
+/* marker status */
+.mrow { display:flex; gap:8px; }
+.mbox { flex:1; background:var(--bg); border:1px solid var(--border); border-radius:7px; padding:8px 10px; }
+.mbox.set { border-color:var(--good); }
+.mbox .ml { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:3px; }
+.mbox .mv { font-family:var(--mono); font-size:12px; color:var(--accent); }
+.mbox .ms { font-size:10px; color:var(--good); }
+
+/* buttons */
+.btn { width:100%; padding:15px; border:none; border-radius:9px; font-size:14px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; cursor:pointer; -webkit-tap-highlight-color:transparent; transition:opacity 0.15s,transform 0.1s; }
+.btn:active { transform:scale(0.97); opacity:0.8; }
+.bp { background:var(--accent); color:#000; }
+.bg { background:transparent; border:1px solid var(--border); color:var(--muted); font-size:12px; }
+.btn:disabled { background:var(--border); color:var(--muted); pointer-events:none; }
+
+/* confirm button */
+#btn-confirm { background:var(--good); color:#000; display:none; }
+#btn-confirm.on { display:block; }
+
+/* result */
+.result-card { display:none; background:var(--surface); border:1px solid var(--accent); border-radius:10px; padding:18px; text-align:center; }
+.result-card.on { display:block; }
+.pdbig { font-family:var(--mono); font-size:60px; font-weight:700; color:var(--accent); line-height:1; text-shadow:0 0 24px rgba(0,229,255,0.3); }
+.pdunit { font-family:var(--mono); font-size:14px; color:var(--muted); margin-top:5px; }
+.pdgrid { margin-top:12px; display:grid; grid-template-columns:1fr 1fr; gap:7px; text-align:left; }
+.pgc { background:var(--bg); border-radius:6px; padding:7px 9px; }
+.pgc .pl { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.07em; }
+.pgc .pv { font-family:var(--mono); font-size:13px; color:var(--accent); margin-top:2px; }
+
+/* debug */
+#dbg { display:none; background:var(--bg); border:1px solid var(--border); border-radius:7px; padding:10px 12px; font-family:var(--mono); font-size:11px; color:var(--muted); line-height:1.9; }
+#dbg.on { display:block; }
+#dbg span { color:var(--accent); }
+.dbt { background:none; border:none; color:var(--muted); font-size:11px; font-family:var(--mono); cursor:pointer; text-decoration:underline; padding:0; }
+</style>
+</head>
+<body>
+
+<header><h1>PD Measure</h1><span>v0.7 · photogrammetry</span></header>
+
+<main>
+
+  <div>
+    <div class="sbar">
+      <div class="ss on" id="s1"></div>
+      <div class="ss"    id="s2"></div>
+      <div class="ss"    id="s3"></div>
+    </div>
+    <div class="slbl" id="steplbl">Step <b>1</b> · Take photo</div>
+  </div>
+
+  <!-- STEP 1: shoot -->
+  <div id="panel-shoot">
+    <div class="card">
+      <span class="tag ti">PHOTO</span>
+      Rear camera, ~<strong>40 cm</strong> from face.<br>
+      Patient looks <strong>above the phone</strong> at a distant target.<br>
+      Both eyes visible, even lighting. Will tap <strong>pupil centers</strong>.
+    </div>
+    <div class="card" style="margin-top:0">
+      <div class="rrow">
+        <label>Distance</label>
+        <input type="range" id="dist-sl" min="20" max="80" step="1" value="40">
+        <div class="rv" id="dist-v">40 cm</div>
+      </div>
+    </div>
+    <label class="btn bp" style="display:block;text-align:center;padding:15px;border-radius:9px;font-size:14px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;cursor:pointer;">
+      📷 Take Photo
+      <input type="file" accept="image/*" capture="environment" id="file-input" style="display:none">
+    </label>
+  </div>
+
+  <!-- Photo canvas -->
+  <div class="img-wrap" id="img-wrap">
+    <canvas id="photo-canvas"></canvas>
+  </div>
+
+  <!-- Zoom inset — outside img-wrap so it's never clipped -->
+  <div id="zoom-inset">
+    <canvas id="zoom-canvas"></canvas>
+  </div>
+
+  <!-- EXIF info -->
+  <div id="exif-row" style="display:none">
+    <div style="font-family:var(--mono);font-size:11px;color:var(--muted);background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:5px 9px;" id="exif-badge">Reading EXIF…</div>
+  </div>
+
+  <!-- STEP 2: tap + dpad -->
+  <div id="panel-tap" style="display:none">
+    <div class="card" id="tap-instr">
+      <span class="tag ti" id="tap-tag">RIGHT EYE</span>
+      <span id="tap-txt">Tap roughly on the <strong>center of the right pupil</strong>, then fine-tune with the D-pad.</span>
+    </div>
+
+    <div class="mrow" id="mrow" style="display:none">
+      <div class="mbox" id="mb-r"><div class="ml">R Eye</div><div class="mv" id="mv-r">—</div><div class="ms" id="ms-r"></div></div>
+      <div class="mbox" id="mb-l"><div class="ml">L Eye</div><div class="mv" id="mv-l">—</div><div class="ms" id="ms-l"></div></div>
+    </div>
+
+    <!-- D-pad -->
+    <div id="dpad-wrap">
+      <div class="dpad-row">
+        <div class="dp" id="dp-up" ontouchstart="startRepeat('up')" ontouchend="stopRepeat()" onmousedown="startRepeat('up')" onmouseup="stopRepeat()">↑</div>
+      </div>
+      <div class="dpad-row">
+        <div class="dp" id="dp-left"  ontouchstart="startRepeat('left')"  ontouchend="stopRepeat()" onmousedown="startRepeat('left')"  onmouseup="stopRepeat()">←</div>
+        <div class="dp center" id="dp-center">
+          <span id="pos-x">—</span>
+          <span id="pos-y">—</span>
+        </div>
+        <div class="dp" id="dp-right" ontouchstart="startRepeat('right')" ontouchend="stopRepeat()" onmousedown="startRepeat('right')" onmouseup="stopRepeat()">→</div>
+      </div>
+      <div class="dpad-row">
+        <div class="dp" id="dp-down" ontouchstart="startRepeat('down')" ontouchend="stopRepeat()" onmousedown="startRepeat('down')" onmouseup="stopRepeat()">↓</div>
+      </div>
+      <div class="step-btns">
+        <div class="stepbtn active" id="step1" onclick="setStep(1)">1px</div>
+        <div class="stepbtn"        id="step5" onclick="setStep(5)">5px</div>
+        <div class="stepbtn"        id="step15" onclick="setStep(15)">15px</div>
+      </div>
+      <div class="dpad-info">Position: <span id="dpad-pos">—</span></div>
+    </div>
+
+    <button class="btn" id="btn-confirm" onclick="confirmMark()">✓ Confirm — Move to Left Eye</button>
+  </div>
+
+  <!-- STEP 3: result -->
+  <div class="result-card" id="result-card">
+    <div class="pdbig" id="pd-val">—</div>
+    <div class="pdunit">mm · binocular PD</div>
+    <div class="pdgrid" id="pd-grid"></div>
+  </div>
+
+  <div id="trim-wrap" style="display:none" class="card">
+    <div class="rrow">
+      <label>PD trim</label>
+      <input type="range" id="pd-trim" min="-8" max="8" step="0.5" value="0">
+      <div class="rv" id="trim-v">0.0 mm</div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:6px;">Adjust shooting distance or trim if result is off.</div>
+  </div>
+
+  <!-- manual focal fallback -->
+  <div id="focal-panel" style="display:none" class="card w">
+    <span class="tag tw">MANUAL</span> EXIF focal not found — enter manually.<br>
+    <div class="rrow" style="margin-top:8px;">
+      <label>Focal (mm)</label>
+      <input type="number" id="focal-input" value="5.0" step="0.1" style="width:70px;flex:none;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--accent);font-family:var(--mono);font-size:14px;padding:5px 8px;text-align:right;">
+      <span style="font-size:11px;color:var(--muted);">default 5.0mm (Redmi Note 13)</span>
+    </div>
+  </div>
+
+  <button class="btn bg" id="btn-reset" style="display:none" onclick="resetAll()">↺ New Measurement</button>
+  <button class="dbt" onclick="document.getElementById('dbg').classList.toggle('on')">debug info</button>
+  <div id="dbg"></div>
+
+</main>
+
+<script>
+// ══ State ══
+const G = {
+  step: 1,           // 1=shoot, 2=marking, 3=result
+  markIdx: 0,        // 0=R eye, 1=L eye
+  marks: [null, null], // {nx,ny} natural image coords
+  activePos: null,   // {nx,ny} current dpad position (before confirm)
+  imgW: 0, imgH: 0,
+  dispScale: 1,      // display px / natural px
+  focalMM: null,
+  distMM: 400,
+  trimVal: 0,
+  nudgeStep: 1,
+  repeatTimer: null,
+  repeatInterval: null,
+  // Redmi Note 13 sensor
+  sensorW: 7.21,     // mm (1/1.67" sensor)
+};
+
+// Zoom inset config
+const ZOOM = { size: 300, factor: 6 }; // larger, higher magnification
+
+// ── DOM ──
+const canvas     = document.getElementById('photo-canvas');
+const ctx        = canvas.getContext('2d');
+const zoomInset  = document.getElementById('zoom-inset');
+const zoomCanvas = document.getElementById('zoom-canvas');
+const zoomCtx    = zoomCanvas.getContext('2d');
+const fileInput  = document.getElementById('file-input');
+const imgWrap    = document.getElementById('img-wrap');
+const distSl     = document.getElementById('dist-sl');
+const distV      = document.getElementById('dist-v');
+const exifRow    = document.getElementById('exif-row');
+const exifBadge  = document.getElementById('exif-badge');
+const panelShoot = document.getElementById('panel-shoot');
+const panelTap   = document.getElementById('panel-tap');
+const dpadWrap   = document.getElementById('dpad-wrap');
+const btnConfirm = document.getElementById('btn-confirm');
+const resultCard = document.getElementById('result-card');
+const trimWrap   = document.getElementById('trim-wrap');
+const focalPanel = document.getElementById('focal-panel');
+const btnReset   = document.getElementById('btn-reset');
+let   imgEl      = null;
+
+distSl.addEventListener('input', () => {
+  G.distMM = +distSl.value * 10;
+  distV.textContent = distSl.value + ' cm';
+  if (G.step === 3) computePD();
+});
+
+document.getElementById('pd-trim').addEventListener('input', function() {
+  G.trimVal = +this.value;
+  document.getElementById('trim-v').textContent = G.trimVal.toFixed(1) + ' mm';
+  computePD();
+});
+
+document.getElementById('focal-input').addEventListener('input', function() {
+  G.focalMM = +this.value;
+  if (G.step === 3) computePD();
+});
+
+// ── File input ──
+fileInput.addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  await readEXIF(file);
+  const url = URL.createObjectURL(file);
+  imgEl = new Image();
+  imgEl.onload = () => {
+    G.imgW = imgEl.naturalWidth;
+    G.imgH = imgEl.naturalHeight;
+    setupCanvas();
+    drawAll();
+    imgWrap.classList.add('on');
+    exifRow.style.display = '';
+    panelShoot.style.display = 'none';
+    panelTap.style.display = '';
+    btnReset.style.display = '';
+    G.step = 2; G.markIdx = 0;
+    updateStepBar();
+    updateDbg();
+  };
+  imgEl.src = url;
+});
+
+function setupCanvas() {
+  const maxW = imgWrap.offsetWidth || window.innerWidth - 28;
+  const aspect = G.imgH / G.imgW;
+  canvas.width  = G.imgW;
+  canvas.height = G.imgH;
+  canvas.style.width  = maxW + 'px';
+  canvas.style.height = (maxW * aspect) + 'px';
+  G.dispScale = maxW / G.imgW;
+
+  // Zoom inset — square canvas, fills container width
+  const maxW2 = imgWrap.offsetWidth || window.innerWidth - 28;
+  zoomCanvas.width  = ZOOM.size;
+  zoomCanvas.height = ZOOM.size;
+  zoomCanvas.style.width  = maxW2 + 'px';
+  zoomCanvas.style.height = maxW2 + 'px';
+  zoomInset.style.height  = maxW2 + 'px';
+}
+
+// ── Canvas tap → place marker ──
+canvas.addEventListener('click',      onCanvasTap, {passive:false});
+canvas.addEventListener('touchstart', onCanvasTap, {passive:false});
+
+function onCanvasTap(e) {
+  e.preventDefault();
+  if (G.step !== 2) return;
+  if (G.activePos && G.markIdx === 0) return; // already placed, waiting confirm
+
+  const rect = canvas.getBoundingClientRect();
+  const cx = e.touches ? e.touches[0].clientX : e.clientX;
+  const cy = e.touches ? e.touches[0].clientY : e.clientY;
+  const nx = (cx - rect.left) / G.dispScale;
+  const ny = (cy - rect.top)  / G.dispScale;
+
+  G.activePos = { nx, ny };
+  document.getElementById('mrow').style.display = 'flex';
+  dpadWrap.classList.add('on');
+  btnConfirm.classList.add('on');
+  if (G.markIdx === 0) {
+    btnConfirm.textContent = '✓ Confirm — Move to Left Eye';
+    btnConfirm.style.background = 'var(--accent)';
+    btnConfirm.style.color = '#000';
+  }
+  updateDpadPos();
+  drawAll();
+  updateDbg();
+}
+
+// ── D-pad nudge ──
+function setStep(s) {
+  G.nudgeStep = s;
+  [1,5,15].forEach(v => {
+    document.getElementById('step'+v).classList.toggle('active', v===s);
+  });
+}
+
+function nudge(dir) {
+  if (!G.activePos) return;
+  const s = G.nudgeStep;
+  if (dir==='left')  G.activePos.nx = Math.max(0, G.activePos.nx - s);
+  if (dir==='right') G.activePos.nx = Math.min(G.imgW, G.activePos.nx + s);
+  if (dir==='up')    G.activePos.ny = Math.max(0, G.activePos.ny - s);
+  if (dir==='down')  G.activePos.ny = Math.min(G.imgH, G.activePos.ny + s);
+  updateDpadPos();
+  drawAll();
+}
+
+function startRepeat(dir) {
+  nudge(dir);
+  document.getElementById('dp-'+dir).classList.add('pressed');
+  G.repeatTimer = setTimeout(() => {
+    G.repeatInterval = setInterval(() => nudge(dir), 80);
+  }, 300);
+}
+
+function stopRepeat() {
+  clearTimeout(G.repeatTimer);
+  clearInterval(G.repeatInterval);
+  ['up','down','left','right'].forEach(d => {
+    const el = document.getElementById('dp-'+d);
+    if (el) el.classList.remove('pressed');
+  });
+}
+
+function updateDpadPos() {
+  if (!G.activePos) return;
+  const nx = G.activePos.nx.toFixed(0);
+  const ny = G.activePos.ny.toFixed(0);
+  document.getElementById('pos-x').textContent = 'x:'+nx;
+  document.getElementById('pos-y').textContent = 'y:'+ny;
+  document.getElementById('dpad-pos').textContent = `${nx}, ${ny}`;
+  updateZoom();
+}
+
+// ── Zoom inset ──
+function updateZoom() {
+  if (!G.activePos || !imgEl) return;
+  const { nx, ny } = G.activePos;
+  const half = (ZOOM.size / ZOOM.factor) / 2; // natural pixels shown in half-inset
+
+  zoomCtx.clearRect(0,0,ZOOM.size,ZOOM.size);
+  // Draw zoomed region from main canvas
+  zoomCtx.imageSmoothingEnabled = false;
+  zoomCtx.drawImage(canvas,
+    nx - half, ny - half, half*2, half*2,
+    0, 0, ZOOM.size, ZOOM.size
+  );
+
+  // Crosshair on zoom
+  const cx = ZOOM.size/2, cy = ZOOM.size/2;
+  zoomCtx.save();
+  zoomCtx.strokeStyle = G.markIdx===0 ? '#00e5ff' : '#00e676';
+  zoomCtx.lineWidth = 1.5;
+  zoomCtx.shadowColor = G.markIdx===0 ? '#00e5ff' : '#00e676';
+  zoomCtx.shadowBlur = 6;
+  const gap = 6;
+  zoomCtx.beginPath();
+  zoomCtx.moveTo(cx-gap, cy); zoomCtx.lineTo(0, cy);
+  zoomCtx.moveTo(cx+gap, cy); zoomCtx.lineTo(ZOOM.size, cy);
+  zoomCtx.moveTo(cx, cy-gap); zoomCtx.lineTo(cx, 0);
+  zoomCtx.moveTo(cx, cy+gap); zoomCtx.lineTo(cx, ZOOM.size);
+  zoomCtx.stroke();
+  zoomCtx.restore();
+
+  zoomInset.classList.add('on');
+}
+
+// ── Confirm mark ──
+function confirmMark() {
+  if (!G.activePos) return;
+  const pos = { ...G.activePos };
+  G.marks[G.markIdx] = pos;
+
+  if (G.markIdx === 0) {
+    // R eye confirmed
+    document.getElementById('mb-r').classList.add('set');
+    document.getElementById('mv-r').textContent = `x=${pos.nx.toFixed(0)}`;
+    document.getElementById('ms-r').textContent = '✓';
+    G.markIdx = 1;
+    G.activePos = null;
+    // Update instruction for L eye
+    document.getElementById('tap-tag').textContent = 'LEFT EYE';
+    document.getElementById('tap-tag').className = 'tag tg';
+    document.getElementById('tap-txt').innerHTML = 'Tap roughly on the <strong>center of the left pupil</strong>, then fine-tune.';
+    btnConfirm.textContent = '✓ Confirm — Calculate PD';
+    btnConfirm.style.background = 'var(--good)';
+    btnConfirm.classList.remove('on'); // hide until L eye tapped
+    dpadWrap.classList.remove('on');
+    zoomInset.classList.remove('on');
+    drawAll();
+
+  } else {
+    // L eye confirmed → compute
+    document.getElementById('mb-l').classList.add('set');
+    document.getElementById('mv-l').textContent = `x=${pos.nx.toFixed(0)}`;
+    document.getElementById('ms-l').textContent = '✓';
+    G.markIdx = 2;
+    G.activePos = null;
+    G.step = 3;
+    dpadWrap.classList.remove('on');
+    btnConfirm.classList.remove('on');
+    zoomInset.classList.remove('on');
+    drawAll();
+    computePD();
+    resultCard.classList.add('on');
+    trimWrap.style.display = '';
+    document.getElementById('tap-tag').textContent = 'RESULT';
+    document.getElementById('tap-tag').className = 'tag tg';
+    document.getElementById('tap-txt').innerHTML = 'Done. Adjust <strong>PD trim</strong> if needed.';
+    updateStepBar();
+  }
+  updateDbg();
+}
+
+// ── Draw everything on canvas ──
+function drawAll() {
+  if (!imgEl) return;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(imgEl, 0, 0);
+
+  // Confirmed marks
+  G.marks.forEach((m,i) => {
+    if (!m) return;
+    drawMarker(ctx, m.nx, m.ny, i===0 ? '#00e5ff' : '#00e676', i===0 ? 'R' : 'L', false);
+  });
+
+  // Active (unconfirmed) position
+  if (G.activePos) {
+    const col = G.markIdx===0 ? '#00e5ff' : '#00e676';
+    const lbl = G.markIdx===0 ? 'R' : 'L';
+    drawMarker(ctx, G.activePos.nx, G.activePos.ny, col, lbl, true);
+  }
+
+  updateZoom();
+}
+
+function drawMarker(c, nx, ny, col, lbl, active) {
+  c.save();
+  c.strokeStyle = col; c.shadowColor = col;
+
+  // Vertical line full height (thin, dashed when confirmed)
+  c.lineWidth = active ? 2 : 1.5;
+  c.globalAlpha = active ? 0.9 : 0.6;
+  c.shadowBlur = 8;
+  c.setLineDash(active ? [] : [10,8]);
+  c.beginPath(); c.moveTo(nx, 0); c.lineTo(nx, G.imgH); c.stroke();
+  // Horizontal line
+  c.beginPath(); c.moveTo(0, ny); c.lineTo(G.imgW, ny); c.stroke();
+  c.setLineDash([]);
+
+  // Outer circle
+  c.lineWidth = 2.5; c.shadowBlur = 14; c.globalAlpha = 1;
+  c.beginPath(); c.arc(nx, ny, 22, 0, Math.PI*2);
+  c.fillStyle = col + (active ? '22' : '11'); c.fill();
+  c.stroke();
+
+  // Center dot
+  c.beginPath(); c.arc(nx, ny, 6, 0, Math.PI*2);
+  c.fillStyle = col; c.fill();
+
+  // Label
+  c.font = 'bold 30px Courier New';
+  c.fillStyle = col; c.shadowBlur = 0;
+  c.fillText(lbl, nx + 26, ny - 18);
+  c.restore();
+}
+
+// ── Compute PD ──
+function computePD() {
+  const R = G.marks[0], L = G.marks[1];
+  if (!R || !L || !G.focalMM) return;
+
+  const pdPx    = Math.abs(L.nx - R.nx);
+  const physPx  = G.sensorW / G.imgW;          // mm per pixel on sensor
+  const mmPerPx = G.distMM * physPx / G.focalMM; // mm per pixel in scene
+  const pdMM    = pdPx * mmPerPx + G.trimVal;
+
+  document.getElementById('pd-val').textContent = pdMM.toFixed(1);
+  document.getElementById('pd-grid').innerHTML = `
+    <div class="pgc"><div class="pl">R pupil x</div><div class="pv">${R.nx.toFixed(0)} px</div></div>
+    <div class="pgc"><div class="pl">L pupil x</div><div class="pv">${L.nx.toFixed(0)} px</div></div>
+    <div class="pgc"><div class="pl">Δ pixels</div><div class="pv">${pdPx.toFixed(0)} px</div></div>
+    <div class="pgc"><div class="pl">mm/px</div><div class="pv">${mmPerPx.toFixed(4)}</div></div>
+    <div class="pgc"><div class="pl">Focal</div><div class="pv">${G.focalMM.toFixed(2)} mm</div></div>
+    <div class="pgc"><div class="pl">Distance</div><div class="pv">${(G.distMM/10).toFixed(0)} cm</div></div>
+  `;
+  updateDbg();
+}
+
+// ── EXIF ──
+async function readEXIF(file) {
+  try {
+    const buf  = await file.arrayBuffer();
+    const view = new DataView(buf);
+    if (view.getUint16(0) !== 0xFFD8) throw new Error('Not JPEG');
+    let offset = 2;
+    while (offset < view.byteLength - 4) {
+      const marker = view.getUint16(offset);
+      const len    = view.getUint16(offset+2);
+      if (marker === 0xFFE1) { parseEXIF(view, offset+4, len-2); break; }
+      if (marker === 0xFFDA) break;
+      offset += 2 + len;
+    }
+  } catch(e) { useFallbackFocal('Parse error: '+e.message); }
+}
+
+function parseEXIF(view, start, len) {
+  const hdr = String.fromCharCode(view.getUint8(start),view.getUint8(start+1),view.getUint8(start+2),view.getUint8(start+3));
+  if (hdr !== 'Exif') { useFallbackFocal('No Exif header'); return; }
+  const ts  = start + 6;
+  const le  = view.getUint16(ts) === 0x4949;
+  const r16 = o => view.getUint16(ts+o, le);
+  const r32 = o => view.getUint32(ts+o, le);
+
+  function searchIFD(ifdOff) {
+    const n = r16(ifdOff);
+    for (let i=0; i<n; i++) {
+      const e = ifdOff + 2 + i*12;
+      const tag = r16(e);
+      if (tag === 0x920A) { // FocalLength
+        const off = r32(e+8);
+        const num = r32(off), den = r32(off+4);
+        if (den>0) return num/den;
+      }
+      if (tag === 0x8769) { // ExifIFD pointer
+        const sub = r32(e+8);
+        const res = searchIFD(sub);
+        if (res) return res;
+      }
+    }
+    return null;
+  }
+
+  const ifdOffset = r32(4);
+  const focal = searchIFD(ifdOffset);
+  if (focal) {
+    G.focalMM = focal;
+    exifBadge.innerHTML = `EXIF focal: <span style="color:var(--accent)">${focal.toFixed(2)} mm</span>`;
+  } else {
+    useFallbackFocal('FocalLength tag not found');
+  }
+}
+
+function useFallbackFocal(reason) {
+  G.focalMM = 5.0;
+  focalPanel.style.display = '';
+  exifBadge.innerHTML = `<span style="color:var(--warn)">⚠ ${reason} · default 5.0mm</span>`;
+}
+
+// ── Step bar ──
+function updateStepBar() {
+  [1,2,3].forEach(i => {
+    document.getElementById('s'+i).className =
+      'ss'+(i<G.step?' done':i===G.step?' on':'');
+  });
+  const l = ['Take photo','Tap & fine-tune iris borders','Result'];
+  document.getElementById('steplbl').innerHTML =
+    `Step <b>${Math.min(G.step,3)}</b> · ${l[Math.min(G.step,3)-1]}`;
+}
+
+// ── Reset ──
+function resetAll() {
+  G.step=1; G.markIdx=0; G.marks=[null,null]; G.activePos=null;
+  G.focalMM=null; G.trimVal=0; imgEl=null;
+  imgWrap.classList.remove('on');
+  exifRow.style.display='none';
+  panelShoot.style.display='';
+  panelTap.style.display='none';
+  dpadWrap.classList.remove('on');
+  btnConfirm.classList.remove('on');
+  resultCard.classList.remove('on');
+  trimWrap.style.display='none';
+  focalPanel.style.display='none';
+  btnReset.style.display='none';
+  zoomInset.classList.remove('on');
+  document.getElementById('mrow').style.display='none';
+  document.getElementById('mb-r').classList.remove('set');
+  document.getElementById('mb-l').classList.remove('set');
+  document.getElementById('mv-r').textContent='—';
+  document.getElementById('mv-l').textContent='—';
+  document.getElementById('ms-r').textContent='';
+  document.getElementById('ms-l').textContent='';
+  document.getElementById('tap-tag').textContent='RIGHT EYE';
+  document.getElementById('tap-tag').className='tag ti';
+  document.getElementById('tap-txt').innerHTML='Tap roughly on the <strong>center of the right pupil</strong>, then fine-tune with the D-pad.';
+  document.getElementById('pd-trim').value=0;
+  document.getElementById('trim-v').textContent='0.0 mm';
+  document.getElementById('pd-val').textContent='—';
+  document.getElementById('pd-grid').innerHTML='';
+  fileInput.value='';
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  setStep(1);
+  updateStepBar();
+  updateDbg();
+}
+
+// ── Debug ──
+function updateDbg() {
+  const R=G.marks[0], L=G.marks[1];
+  const physPx = G.imgW ? (G.sensorW/G.imgW).toFixed(6) : '—';
+  const mmPx   = G.focalMM && G.imgW ? (G.distMM*(G.sensorW/G.imgW)/G.focalMM).toFixed(4) : '—';
+  document.getElementById('dbg').innerHTML = `
+    <div>Image: <span>${G.imgW}×${G.imgH}</span></div>
+    <div>Focal: <span>${G.focalMM?G.focalMM.toFixed(3)+'mm':'—'}</span>  Dist: <span>${G.distMM}mm</span></div>
+    <div>Sensor W: <span>${G.sensorW}mm</span>  physPx: <span>${physPx}mm/px</span></div>
+    <div>mm/px: <span>${mmPx}</span></div>
+    <div>R: <span>${R?R.nx.toFixed(1)+','+R.ny.toFixed(1):'—'}</span></div>
+    <div>L: <span>${L?L.nx.toFixed(1)+','+L.ny.toFixed(1):'—'}</span></div>
+    <div>Active: <span>${G.activePos?G.activePos.nx.toFixed(1)+','+G.activePos.ny.toFixed(1):'—'}</span></div>
+    <div>PD px: <span>${R&&L?Math.abs(L.nx-R.nx).toFixed(1):'—'}</span></div>
+  `;
+}
+
+updateDbg();
+</script>
+</body>
+</html>
